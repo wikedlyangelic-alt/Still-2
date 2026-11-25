@@ -169,9 +169,11 @@
   <div class="sheet bubble" id="sheet-edit" aria-hidden="true">
     <div class="scrim" data-close></div>
     <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="edit-when" id="edit-bubble">
-      <p class="edit-when" id="edit-when"></p>
+      <div class="edit-top">
+        <p class="edit-when" id="edit-when"></p>
+        <div class="mini-wheel" id="edit-kinds" role="group" aria-label="Kind. Swipe up or down, or tap for the next one." hidden></div>
+      </div>
       <label class="edit-field"><span class="sr-only">Text</span><textarea id="edit-text" rows="2" maxlength="4000"></textarea></label>
-      <div class="edit-dots" id="edit-kinds" role="radiogroup" aria-label="Kind" hidden></div>
       <div class="edit-actions">
         <button type="button" class="text-btn danger" id="edit-delete">Delete</button>
         <button type="button" class="pill-btn sm" id="edit-save">Save</button>

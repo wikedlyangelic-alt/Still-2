@@ -867,15 +867,45 @@
   }
   watchHolds($('g-tl'), $('g-scroll'));
   watchHolds($('m-tl'), $('m-scroll'));
-  function paintEditKinds() {
-    $('edit-kinds').innerHTML = KIND_ORDER.map(function (k) {
-      return '<button type="button" class="edit-dot" role="radio" style="--k:' + KINDS[k].color + '" data-k="' + k + '" aria-label="' + KINDS[k].label + '" aria-checked="' + (editKind === k) + '"><span></span></button>';
-    }).join('');
-    var isG = editing && editing.table === 'moments', c = isG ? KINDS.gratitude.color : KINDS[editKind || 'others'].color;
-    $('sheet-edit').style.setProperty('--c', c);
-    var b = $('edit-when').querySelector('b');
-    if (b) { b.textContent = isG ? 'Gratitude' : KINDS[editKind || 'others'].label; }
+  // the kind selector in the bubble: a small up-and-down wheel; tap it for the next kind
+  var mwEl = $('edit-kinds'), mwSettle = null, mwQuiet = false;
+  mwEl.innerHTML = '<div class="mw-row">' + KIND_ORDER.map(function (k) {
+    return '<button type="button" class="mw-item" data-k="' + k + '" style="--k:' + KINDS[k].color + '" tabindex="-1"><i></i>' + esc(KINDS[k].label) + '</button>';
+  }).join('') + '</div>';
+  var mwItems = mwEl.querySelectorAll('.mw-item');
+  function mwScrollTo(i, smooth) {
+    var top = mwItems[i].offsetTop + mwItems[i].offsetHeight / 2 - mwEl.clientHeight / 2;
+    if (smooth && !reduceMotion && mwEl.scrollTo) { mwEl.scrollTo({ top: top, behavior: 'smooth' }); } else { mwQuiet = true; mwEl.scrollTop = top; setTimeout(function () { mwQuiet = false; }, 60); }
   }
+  function paintEditKinds() {
+    var isG = editing && editing.table === 'moments', k = isG ? 'gratitude' : (editKind || 'others'), c = KINDS[k].color;
+    $('sheet-edit').style.setProperty('--c', c);
+    Array.prototype.forEach.call(mwItems, function (it) { var on = it.getAttribute('data-k') === k; it.classList.toggle('on', on); it.setAttribute('aria-pressed', String(on)); it.tabIndex = on ? 0 : -1; });
+    var b = $('edit-when').querySelector('b');
+    if (b) { b.textContent = KINDS[k].label; }
+  }
+  mwEl.addEventListener('scroll', function () {
+    if (mwQuiet) { return; }
+    clearTimeout(mwSettle);
+    mwSettle = setTimeout(function () {
+      var mid = mwEl.scrollTop + mwEl.clientHeight / 2, best = 0, bd = 1e9;
+      for (var i = 0; i < mwItems.length; i++) { var d = Math.abs(mwItems[i].offsetTop + mwItems[i].offsetHeight / 2 - mid); if (d < bd) { bd = d; best = i; } }
+      var k = KIND_ORDER[best];
+      if (k !== editKind) { editKind = k; paintEditKinds(); try { if (navigator.vibrate) { navigator.vibrate(8); } } catch (e) {} }
+    }, 110);
+  }, { passive: true });
+  mwEl.addEventListener('click', function () {
+    var i = (KIND_ORDER.indexOf(editKind) + 1) % KIND_ORDER.length;
+    mwScrollTo(i, true);
+  });
+  mwEl.addEventListener('keydown', function (e) {
+    var step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) { return; }
+    e.preventDefault();
+    var i = Math.max(0, Math.min(KIND_ORDER.length - 1, KIND_ORDER.indexOf(editKind) + step));
+    mwScrollTo(i, true);
+    try { mwItems[i].focus({ preventScroll: true }); } catch (err) {}
+  });
   function fitEditText() { var t = $('edit-text'); t.style.height = 'auto'; t.style.height = Math.min(168, Math.max(64, t.scrollHeight)) + 'px'; }
   $('edit-text').addEventListener('input', fitEditText);
   function openEdit(table, id, anchor) {
@@ -884,10 +914,12 @@
     editing = { table: table, id: id };
     var isMind = table === 'mind_entries', d = new Date(m.at);
     editKind = isMind ? m.kind : null;
-    $('edit-when').innerHTML = '<b>' + esc(isMind ? (KINDS[m.kind] || KINDS.others).label : 'Gratitude') + '</b> · ' + esc(WEEKDAYS[d.getDay()].slice(0, 3) + ', ' + MONTHS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + timeLabel(d));
+    var whenText = WEEKDAYS[d.getDay()].slice(0, 3) + ', ' + MONTHS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + timeLabel(d);
+    $('edit-when').innerHTML = isMind ? esc(whenText) : '<b>Gratitude</b> · ' + esc(whenText);
     $('edit-kinds').hidden = !isMind;
     $('edit-text').value = m.text;
     paintEditKinds();
+    if (isMind) { setTimeout(function () { mwScrollTo(KIND_ORDER.indexOf(editKind), false); }, 0); }
     // float the bubble up from the entry you held, kept high enough to clear the keyboard
     var bub = $('edit-bubble'), ar = app.getBoundingClientRect(), top = 96, ox = 40;
     if (anchor) {
@@ -900,10 +932,6 @@
     openSheet('sheet-edit');
     fitEditText();
   }
-  $('edit-kinds').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-k]');
-    if (b) { editKind = b.getAttribute('data-k'); paintEditKinds(); }
-  });
   $('edit-save').addEventListener('click', function () {
     if (!editing) { return; }
     var m = findEntry(editing.table, editing.id), text = String($('edit-text').value || '').trim();
