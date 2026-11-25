@@ -30,23 +30,23 @@
         <button type="button" class="icon-btn cloud-btn" id="w-cloud" aria-label="Back up your moments"><span class="msr" id="w-cloud-icon">cloud_off</span></button>
       </header>
       <div class="write">
-        <h1 class="display">What are you grateful for?</h1>
+        <div class="kind-wheel" id="w-kinds" role="group" aria-label="What you are writing. Swipe sideways to change."></div>
+        <h1 class="display" id="w-ask">What are you grateful for?</h1>
         <label class="write-field">
-          <span class="sr-only">Your moment</span>
+          <span class="sr-only" id="w-text-label">Your moment</span>
           <textarea id="w-text" rows="3" maxlength="4000" placeholder="Write it down, or tap the mic and say it"></textarea>
         </label>
         <div class="write-actions">
           <button type="button" class="round-btn" id="w-mic" aria-label="Say it out loud"><span class="msr">mic</span></button>
-          <button type="button" class="pill-btn" id="w-save">Save moment</button>
+          <button type="button" class="pill-btn kind-btn" id="w-save">Save moment</button>
         </div>
-        <p class="muted" id="w-count"></p>
       </div>
       <div class="listen" id="w-listen" aria-hidden="true">
         <button type="button" class="blob-btn" id="w-blob" aria-label="Stop listening">
           <span class="blob-glow" id="w-glow" aria-hidden="true"></span>
           <svg viewBox="-150 -150 300 300" aria-hidden="true">
             <defs>
-              <radialGradient id="blob-fill" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#FFF4D6"></stop><stop offset=".38" stop-color="#F2CF7E"></stop><stop offset=".78" stop-color="#C9A0E8"></stop><stop offset="1" stop-color="#7E6FD6"></stop></radialGradient>
+              <radialGradient id="blob-fill" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#FFF4D6" id="bf0"></stop><stop offset=".38" stop-color="#F2CF7E" id="bf1"></stop><stop offset=".78" stop-color="#C9A0E8" id="bf2"></stop><stop offset="1" stop-color="#7E6FD6"></stop></radialGradient>
               <radialGradient id="blob-sheen" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".55"></stop><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"></stop></radialGradient>
             </defs>
             <path id="w-blob-path" fill="url(#blob-fill)"></path>
@@ -57,7 +57,7 @@
         <div class="transcript" id="w-transcript"></div>
         <div class="listen-actions">
           <button type="button" class="pill-btn tonal" id="w-listen-done">Done</button>
-          <button type="button" class="pill-btn" id="w-listen-save">Save moment</button>
+          <button type="button" class="pill-btn kind-btn" id="w-listen-save">Save moment</button>
         </div>
       </div>
     </section>
@@ -164,6 +164,19 @@
         <textarea id="mind-text" rows="3" maxlength="4000"></textarea>
       </label>
       <button type="button" class="pill-btn wide" id="mind-save">Save entry</button>
+    </div>
+  </div>
+
+  <div class="sheet float" id="sheet-edit" aria-hidden="true">
+    <div class="scrim" data-close></div>
+    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+      <div class="sheet-head"><div><h2 id="edit-title">Edit moment</h2><p class="edit-when" id="edit-when"></p></div><button type="button" class="icon-btn" data-close aria-label="Close"><span class="msr">close</span></button></div>
+      <div class="chips wrap" id="edit-kinds" role="radiogroup" aria-label="Kind" hidden></div>
+      <label class="edit-field"><span class="sr-only">Text</span><textarea id="edit-text" rows="5" maxlength="4000"></textarea></label>
+      <div class="edit-actions">
+        <button type="button" class="text-btn danger" id="edit-delete">Delete</button>
+        <button type="button" class="pill-btn" id="edit-save">Save changes</button>
+      </div>
     </div>
   </div>
 

@@ -19,10 +19,11 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - The bright point on the eclipse's rim is the sun. Moons near it are lit; far ones fall into shadow (see `light()` in `app.js`).
 - Gratitude and Master your Mind use the star line: a light travels down the line as you scroll and lights the stars it passes (`Timeline` in `app.js`). Days are separated by a medallion with the date. Long days show 6 entries, then "Show N more".
 - The phone's back gesture closes sheets, the eclipse, the voice blob and ends a meditation (the `layers` stack).
-- Write is centred, with a live clock (seconds) under the date. The mic opens a full-screen moving blob with the words appearing underneath (`drawBlob`); tap the blob to pause or keep talking. Entries in the lists show their time to the second.
+- Write is centred, with a live clock (seconds) under the date. Under it, a sideways kind wheel: Gratitude, then the five Master your Mind kinds. When it stops, the middle one locks in: the question, placeholder, Save button, caret and voice blob take that kind's colour, and Save goes to `moments` or `mind_entries`. It starts on Gratitude each time the app opens.
+- Hold an entry in Gratitude or Master your Mind (about half a second) to open a floating editor: change the text (and the kind, for Master your Mind), Save changes or Delete, both with Undo. Enter on a focused entry opens it too. The mic opens a full-screen moving blob with the words appearing underneath (`drawBlob`); tap the blob to pause or keep talking. Entries in the lists show their time to the second.
 - Gratitude and Master your Mind stars zigzag left and right of the line (`zigX`, stable per entry id); the line is an SVG path and the light runs along it.
 - Meditate: a sideways minute wheel (1–60, then 75, 90, 120), sounds (Silence, Deep hum, Soft rain, Ocean waves, Night wind) and end bells (Singing bowl, Temple bell, Soft chimes, Deep gong, No bell), all made with WebAudio so they work offline, plus a volume slider. Begin fades everything except the circle and countdown; the settings come back when it ends.
-- Every save shows a toast with Undo; undo marks the entry `deleted_at` so the removal syncs.
+- Every save, edit and delete shows a toast with Undo. Entries are always found by id (`findEntry`), because a sync can swap the object; removal sets `deleted_at` so it syncs.
 
 ## Data
 
@@ -50,4 +51,4 @@ Good = today's gratitude moments + "Thinking of others". Hard = angry + afraid +
 
 ## Not built yet
 
-Affirmations recorded in your own voice, the Patterns counsellor (AI), push notifications and daily reminders, editing and deleting older entries (only Undo right after saving exists), a way to log Master your Mind entries from Write (five options on the design canvas, round 5), the guided journey.
+Affirmations recorded in your own voice, the Patterns counsellor (AI), push notifications and daily reminders, the guided journey, a first-time intro (including how the eclipse works).

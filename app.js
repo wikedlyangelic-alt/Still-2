@@ -103,13 +103,23 @@
     persist(); keepStorage(); dirtyAll(); syncSoon(400);
     return m;
   }
-  // Undo right after saving: the entry is marked removed, so the removal backs up like any other change.
-  function undoEntry(m, then) {
-    var now = new Date().toISOString();
-    m.deleted_at = now; m.updated_at = now; m.synced = false;
-    persist(); dirtyAll(); syncSoon(400);
-    if (then) { then(); }
-    toast('Removed.');
+  // Entries are always looked up by id: a sync can swap the object for a fresh copy.
+  function listFor(table) { return table === 'moments' ? DB.moments : DB.mind; }
+  function findEntry(table, id) { var l = listFor(table); for (var i = 0; i < l.length; i++) { if (l[i].id === id) { return l[i]; } } return null; }
+  function touch(m) { m.updated_at = new Date().toISOString(); m.synced = false; persist(); dirtyAll(); syncSoon(400); }
+  // Removing marks the entry, so the removal backs up like any other change.
+  function removeEntry(table, id) {
+    var m = findEntry(table, id);
+    if (!m) { return null; }
+    var snap = JSON.parse(JSON.stringify(m));
+    m.deleted_at = new Date().toISOString(); touch(m);
+    return snap;
+  }
+  function restoreEntry(table, snap) {
+    var m = findEntry(table, snap.id);
+    if (!m) { m = JSON.parse(JSON.stringify(snap)); listFor(table).push(m); listFor(table).sort(function (a, b) { return ms(b.at) - ms(a.at); }); }
+    m.text = snap.text; if (snap.kind) { m.kind = snap.kind; }
+    m.deleted_at = null; touch(m);
   }
 
   /* ---------- backup and sync with Supabase ---------- */
@@ -463,15 +473,29 @@
   function dirtyAll() { dirty = { write: 1, gratitude: 1, mind: 1, patterns: 1 }; }
   dirtyAll();
 
+  // Gratitude and the five Master your Mind kinds, in the order the Write wheel shows them
+  var KINDS = {
+    gratitude: { label: 'Gratitude', short: 'gratitude', color: '#EEC56C', on: '#3F2D00', q: 'What are you grateful for?', ask: 'Write it down, or tap the mic and say it' },
+    others: { label: 'Thinking of others', short: 'thinking of others', color: '#7DDBA8', on: '#0B3A22', q: 'Who did you think of today?', ask: 'Who did you think of, and what did you do?' },
+    angry: { label: 'Angry', short: 'angry', color: '#FF8A7A', on: '#4A0F07', q: 'What made you angry?', ask: 'Where did it land, and on whom?' },
+    afraid: { label: 'Afraid', short: 'afraid', color: '#8AB6FF', on: '#0B2A5E', q: 'What are you afraid of?', ask: 'What were you protecting?' },
+    selfish: { label: 'Selfish', short: 'selfish', color: '#FFB15C', on: '#3E2200', q: 'Where were you selfish?', ask: 'Who carried it instead of you?' },
+    resentful: { label: 'Resentful', short: 'resentful', color: '#E89BEF', on: '#3D0B44', q: 'What are you resentful about?', ask: 'What went unsaid?' }
+  };
+  var KIND_ORDER = ['others', 'angry', 'afraid', 'selfish', 'resentful'];
+  var HARD = ['afraid', 'angry', 'selfish', 'resentful'];
+  var WRITE_ORDER = ['gratitude'].concat(KIND_ORDER);
+  function hexMix(a, b, k) {
+    var pa = [1, 3, 5].map(function (i) { return parseInt(a.substr(i, 2), 16); }), pb = [1, 3, 5].map(function (i) { return parseInt(b.substr(i, 2), 16); });
+    return '#' + pa.map(function (v, i) { return ('0' + Math.round(v + (pb[i] - v) * k).toString(16)).slice(-2); }).join('');
+  }
+
   // Write
   function clockLabel(d) { try { return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }); } catch (e) { return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); } }
   function renderWrite() {
     var now = new Date();
     $('w-date').textContent = WEEKDAYS[now.getDay()] + ', ' + now.getDate() + ' ' + MONTHS[now.getMonth()];
     $('w-clock').textContent = clockLabel(now);
-    var k = dayKey(now);
-    var n = live(DB.moments).filter(function (m) { return dayKey(new Date(m.at)) === k; }).length;
-    $('w-count').textContent = n ? plural(n, 'moment') + ' today' : 'No moments yet today';
   }
   // the clock under the date ticks every second while Write is open
   var clockTimer = null;
@@ -484,19 +508,96 @@
     clockTimer = setTimeout(runClock, 1000 - now.getMilliseconds() + 5);
   }
   document.addEventListener('visibilitychange', runClock);
+
+  // the kind wheel: swipe sideways; when it stops, the one in the middle locks in and Write takes its colour
+  var wKind = 'gratitude', kwEl = $('w-kinds'), kwTick = false, kwSettle = null, kwFirst = true;
+  kwEl.innerHTML = '<div class="kw-row">' + WRITE_ORDER.map(function (k) {
+    return '<button type="button" class="kw-item" data-k="' + k + '" style="--c:' + KINDS[k].color + '" aria-pressed="false" tabindex="-1"><i></i>' + esc(KINDS[k].label) + '</button>';
+  }).join('') + '</div>';
+  var kwItems = kwEl.querySelectorAll('.kw-item');
+  function kwCenter(el) { return el.offsetLeft + el.offsetWidth / 2; }
+  function paintKindWheel() {
+    var mid = kwEl.scrollLeft + kwEl.clientWidth / 2;
+    for (var i = 0; i < kwItems.length; i++) {
+      var d = Math.min(220, Math.abs(kwCenter(kwItems[i]) - mid));
+      kwItems[i].style.opacity = (1 - d / 220 * 0.7).toFixed(3);
+      kwItems[i].style.transform = 'scale(' + (1 - d / 220 * 0.14).toFixed(3) + ')';
+    }
+  }
+  function nearestKind() {
+    var mid = kwEl.scrollLeft + kwEl.clientWidth / 2, best = 0, bd = 1e9;
+    for (var i = 0; i < kwItems.length; i++) { var d = Math.abs(kwCenter(kwItems[i]) - mid); if (d < bd) { bd = d; best = i; } }
+    return best;
+  }
+  function scrollKindTo(i, smooth) {
+    var left = kwCenter(kwItems[i]) - kwEl.clientWidth / 2;
+    if (smooth && !reduceMotion && kwEl.scrollTo) { kwEl.scrollTo({ left: left, behavior: 'smooth' }); } else { kwEl.scrollLeft = left; paintKindWheel(); lockKind(i, true); }
+  }
+  function lockKind(i, quiet) {
+    var k = WRITE_ORDER[i], K = KINDS[k], changed = k !== wKind;
+    for (var j = 0; j < kwItems.length; j++) {
+      var on = j === i;
+      kwItems[j].classList.toggle('on', on);
+      kwItems[j].setAttribute('aria-pressed', String(on));
+      kwItems[j].tabIndex = on ? 0 : -1;
+    }
+    wKind = k;
+    var page = $('page-write');
+    page.style.setProperty('--wk', K.color); page.style.setProperty('--wk-on', K.on);
+    var label = k === 'gratitude' ? 'Save moment' : 'Save as ' + K.short;
+    $('w-save').textContent = label; $('w-listen-save').textContent = label;
+    $('w-text').placeholder = K.ask;
+    $('w-text-label').textContent = k === 'gratitude' ? 'Your moment' : 'What happened';
+    var ask = $('w-ask');
+    if (changed && !quiet && !reduceMotion) {
+      ask.classList.add('swap');
+      setTimeout(function () { ask.textContent = K.q; ask.classList.remove('swap'); }, 160);
+    } else { ask.textContent = K.q; }
+    $('bf0').setAttribute('stop-color', k === 'gratitude' ? '#FFF4D6' : hexMix(K.color, '#FFFFFF', 0.72));
+    $('bf1').setAttribute('stop-color', k === 'gratitude' ? '#F2CF7E' : K.color);
+    $('bf2').setAttribute('stop-color', k === 'gratitude' ? '#C9A0E8' : hexMix(K.color, '#9D90E6', 0.55));
+    $('w-glow').style.background = 'radial-gradient(circle, ' + hexMix(K.color, '#100E1B', 0.1) + '8C, rgba(157, 144, 230, .25) 55%, transparent 72%)';
+    if (changed && !quiet) { try { if (navigator.vibrate) { navigator.vibrate(10); } } catch (e) {} }
+  }
+  kwEl.addEventListener('scroll', function () {
+    if (!kwTick) { kwTick = true; requestAnimationFrame(function () { kwTick = false; paintKindWheel(); }); }
+    for (var j = 0; j < kwItems.length; j++) { kwItems[j].classList.remove('on'); }
+    clearTimeout(kwSettle);
+    kwSettle = setTimeout(function () { lockKind(nearestKind()); }, 120);
+  }, { passive: true });
+  kwEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.kw-item');
+    if (!b) { return; }
+    scrollKindTo(WRITE_ORDER.indexOf(b.getAttribute('data-k')), true);
+  });
+  kwEl.addEventListener('keydown', function (e) {
+    var step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) { return; }
+    e.preventDefault();
+    var i = Math.max(0, Math.min(WRITE_ORDER.length - 1, WRITE_ORDER.indexOf(wKind) + step));
+    scrollKindTo(i, true);
+    try { kwItems[i].focus({ preventScroll: true }); } catch (err) {}
+  });
+  function placeKindWheel() { if (current === 'write') { scrollKindTo(WRITE_ORDER.indexOf(wKind), false); } }
+  window.addEventListener('resize', placeKindWheel);
+
   var usedVoice = false;
   function saveWritten(text) {
     stopListening(true);
-    var m = addMoment(text, usedVoice ? 'voice' : 'typed');
+    var k = wKind, m, table;
+    if (k === 'gratitude') { m = addMoment(text, usedVoice ? 'voice' : 'typed'); table = 'moments'; }
+    else { m = addMind(k, text); table = 'mind_entries'; }
     $('w-text').value = ''; usedVoice = false;
-    renderWrite();
-    toast('Saved. ' + $('w-count').textContent + '.', { label: 'Undo', run: function () {
-      undoEntry(m, function () { if (!String($('w-text').value || '').trim()) { $('w-text').value = m.text; } renderCurrent(); });
+    toast(k === 'gratitude' ? 'Saved to gratitude.' : 'Saved as ' + KINDS[k].short + '.', { label: 'Undo', run: function () {
+      removeEntry(table, m.id);
+      toast('Removed.');
+      if (!String($('w-text').value || '').trim()) { $('w-text').value = m.text; }
+      renderCurrent();
     } });
   }
   $('w-save').addEventListener('click', function () {
     var ta = $('w-text'), text = String(ta.value || '').trim();
-    if (!text) { toast('Write something first, or tap the mic and say it.'); ta.focus({ preventScroll: true }); return; }
+    if (!text) { toast(wKind === 'gratitude' ? 'Write something first, or tap the mic and say it.' : 'Write a few words about what happened.'); ta.focus({ preventScroll: true }); return; }
     saveWritten(text);
   });
   $('w-cloud').addEventListener('click', function () { paintAccount(); openSheet('sheet-account'); });
@@ -510,7 +611,7 @@
   function paintTranscript() {
     var main = joinText(), tail = interimText.trim();
     if (!main && tail) { tail = cap(tail); }
-    if (!main && !tail) { $('w-transcript').innerHTML = '<span class="ghost">Say what you are grateful for</span>'; return; }
+    if (!main && !tail) { $('w-transcript').innerHTML = '<span class="ghost">' + esc(KINDS[wKind].q) + '</span>'; return; }
     $('w-transcript').innerHTML = esc(main) + (tail ? ' <span class="interim">' + esc(tail) + '</span>' : '');
     var t = $('w-transcript'); t.scrollTop = t.scrollHeight;
   }
@@ -629,7 +730,7 @@
       html += '<div class="tl-day" data-node data-label="' + esc(info.label) + '"><span class="tl-medal">' + info.num + '</span><div><h2>' + esc(info.title) + '</h2><p>' + esc(info.sub) + '</p></div></div>';
       var show = gOpen[g.key] ? g.items : g.items.slice(0, SHOW);
       show.forEach(function (m, j) {
-        html += '<div class="tl-item" data-node style="--x:' + zigX(j, m.id) + 'px"><span class="tl-dot"></span><div class="tl-body"><span class="tl-meta">' + esc(timeLabel(new Date(m.at))) + '</span><p>' + esc(m.text) + '</p></div></div>';
+        html += '<div class="tl-item" data-node data-t="moments" data-id="' + esc(m.id) + '" tabindex="0" aria-roledescription="moment. Hold to edit" style="--x:' + zigX(j, m.id) + 'px"><span class="tl-dot"></span><div class="tl-body"><span class="tl-meta">' + esc(timeLabel(new Date(m.at))) + '</span><p>' + esc(m.text) + '</p></div></div>';
       });
       if (show.length < g.items.length) {
         html += '<button type="button" class="tl-more" data-more="' + g.key + '">Show ' + (g.items.length - show.length) + ' more from ' + esc(info.title) + '</button>';
@@ -639,15 +740,6 @@
   }
 
   // Master your Mind
-  var KINDS = {
-    others: { label: 'Thinking of others', color: '#7DDBA8', ask: 'Who did you think of, and what did you do?' },
-    angry: { label: 'Angry', color: '#FF8A7A', ask: 'Where did it land, and on whom?' },
-    afraid: { label: 'Afraid', color: '#8AB6FF', ask: 'What were you protecting?' },
-    selfish: { label: 'Selfish', color: '#FFB15C', ask: 'Who carried it instead of you?' },
-    resentful: { label: 'Resentful', color: '#E89BEF', ask: 'What went unsaid?' }
-  };
-  var KIND_ORDER = ['others', 'angry', 'afraid', 'selfish', 'resentful'];
-  var HARD = ['afraid', 'angry', 'selfish', 'resentful'];
   var mFilter = 'all', mOpen = {};
   var mTL = new Timeline($('m-scroll'), $('m-tl'), null, function (key) { mOpen[key] = true; dirty.mind = 1; renderMind(); });
   $('m-tl').classList.add('lav');
@@ -702,7 +794,7 @@
       var show = mOpen[g.key] ? g.items : g.items.slice(0, SHOW);
       show.forEach(function (m, j) {
         var k = KINDS[m.kind] || KINDS.others;
-        html += '<div class="tl-item" data-node style="--c:' + k.color + ';--x:' + zigX(j, m.id) + 'px"><span class="tl-dot"></span><div class="tl-body"><span class="tl-meta"><b>' + esc(k.label) + '</b>· ' + esc(timeLabel(new Date(m.at))) + '</span><p>' + esc(m.text) + '</p></div></div>';
+        html += '<div class="tl-item" data-node data-t="mind_entries" data-id="' + esc(m.id) + '" tabindex="0" aria-roledescription="entry. Hold to edit" style="--c:' + k.color + ';--x:' + zigX(j, m.id) + 'px"><span class="tl-dot"></span><div class="tl-body"><span class="tl-meta"><b>' + esc(k.label) + '</b>· ' + esc(timeLabel(new Date(m.at))) + '</span><p>' + esc(m.text) + '</p></div></div>';
       });
       if (show.length < g.items.length) {
         html += '<button type="button" class="tl-more" data-more="' + g.key + '">Show ' + (g.items.length - show.length) + ' more from ' + esc(info.title) + '</button>';
@@ -735,7 +827,7 @@
     var m = addMind(mindKind, text);
     closeSheet('sheet-mind');
     renderMind();
-    toast('Saved as ' + KINDS[mindKind].label.toLowerCase() + '.', { label: 'Undo', run: function () { undoEntry(m, function () { renderCurrent(); }); } });
+    toast('Saved as ' + KINDS[mindKind].short + '.', { label: 'Undo', run: function () { removeEntry('mind_entries', m.id); toast('Removed.'); renderCurrent(); } });
   });
   $('m-add').addEventListener('click', openMindSheet);
   app.addEventListener('click', function (e) {
@@ -743,6 +835,84 @@
     if (a) { openMindSheet(); return; }
     var g = e.target.closest('[data-go]');
     if (g) { show(g.getAttribute('data-go')); }
+  });
+
+
+  // Hold an entry in Gratitude or Master your Mind to edit it
+  var hold = null, editing = null, editKind = null;
+  function cancelHold() { if (!hold) { return; } clearTimeout(hold.t1); clearTimeout(hold.t2); hold.el.classList.remove('holding'); hold = null; }
+  function watchHolds(tlEl, scrollEl) {
+    tlEl.addEventListener('pointerdown', function (e) {
+      var el = e.target.closest('.tl-item[data-id]');
+      if (!el || (e.pointerType === 'mouse' && e.button !== 0)) { return; }
+      cancelHold();
+      hold = { el: el, x: e.clientX, y: e.clientY };
+      hold.t1 = setTimeout(function () { if (hold) { hold.el.classList.add('holding'); } }, 140);
+      hold.t2 = setTimeout(function () {
+        if (!hold) { return; }
+        var h = hold; hold = null;
+        try { if (navigator.vibrate) { navigator.vibrate(12); } } catch (err) {}
+        openEdit(h.el.getAttribute('data-t'), h.el.getAttribute('data-id'));
+        setTimeout(function () { h.el.classList.remove('holding'); }, 250);
+      }, 520);
+    });
+    tlEl.addEventListener('pointermove', function (e) { if (hold && (Math.abs(e.clientX - hold.x) > 10 || Math.abs(e.clientY - hold.y) > 10)) { cancelHold(); } });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (n) { tlEl.addEventListener(n, cancelHold); });
+    scrollEl.addEventListener('scroll', cancelHold, { passive: true });
+    tlEl.addEventListener('contextmenu', function (e) { if (e.target.closest('.tl-item[data-id]')) { e.preventDefault(); } });
+    tlEl.addEventListener('keydown', function (e) {
+      var el = e.target.closest && e.target.closest('.tl-item[data-id]');
+      if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEdit(el.getAttribute('data-t'), el.getAttribute('data-id')); }
+    });
+  }
+  watchHolds($('g-tl'), $('g-scroll'));
+  watchHolds($('m-tl'), $('m-scroll'));
+  function paintEditKinds() {
+    $('edit-kinds').innerHTML = KIND_ORDER.map(function (k) {
+      return '<button type="button" class="chip" role="radio" style="--c:' + KINDS[k].color + '" data-k="' + k + '" aria-checked="' + (editKind === k) + '" aria-pressed="' + (editKind === k) + '"><i></i>' + KINDS[k].label + '</button>';
+    }).join('');
+    var isG = editing && editing.table === 'moments', c = isG ? KINDS.gratitude.color : KINDS[editKind || 'others'].color;
+    $('sheet-edit').style.setProperty('--c', c);
+    var b = $('edit-when').querySelector('b');
+    if (b) { b.textContent = isG ? 'Gratitude' : KINDS[editKind || 'others'].label; }
+  }
+  function openEdit(table, id) {
+    var m = findEntry(table, id);
+    if (!m || m.deleted_at) { return; }
+    editing = { table: table, id: id };
+    var isMind = table === 'mind_entries', d = new Date(m.at);
+    editKind = isMind ? m.kind : null;
+    $('edit-title').textContent = isMind ? 'Edit entry' : 'Edit moment';
+    $('edit-when').innerHTML = '<b>' + esc(isMind ? (KINDS[m.kind] || KINDS.others).label : 'Gratitude') + '</b> · ' + esc(WEEKDAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + timeLabel(d));
+    $('edit-kinds').hidden = !isMind;
+    $('edit-text').value = m.text;
+    paintEditKinds();
+    openSheet('sheet-edit');
+  }
+  $('edit-kinds').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-k]');
+    if (b) { editKind = b.getAttribute('data-k'); paintEditKinds(); }
+  });
+  $('edit-save').addEventListener('click', function () {
+    if (!editing) { return; }
+    var m = findEntry(editing.table, editing.id), text = String($('edit-text').value || '').trim();
+    if (!m) { closeSheet('sheet-edit'); return; }
+    if (!text) { toast('Write something, or use Delete to remove it.'); return; }
+    var table = editing.table, snap = JSON.parse(JSON.stringify(m));
+    var kindChanged = table === 'mind_entries' && editKind && editKind !== m.kind;
+    if (text === m.text && !kindChanged) { closeSheet('sheet-edit'); return; }
+    m.text = text; if (kindChanged) { m.kind = editKind; }
+    touch(m);
+    closeSheet('sheet-edit');
+    renderCurrent();
+    toast('Changes saved.', { label: 'Undo', run: function () { restoreEntry(table, snap); toast('Changed back.'); renderCurrent(); } });
+  });
+  $('edit-delete').addEventListener('click', function () {
+    if (!editing) { return; }
+    var table = editing.table, snap = removeEntry(table, editing.id);
+    closeSheet('sheet-edit');
+    renderCurrent();
+    if (snap) { toast(table === 'moments' ? 'Moment deleted.' : 'Entry deleted.', { label: 'Undo', run: function () { restoreEntry(table, snap); toast('Brought back.'); renderCurrent(); } }); }
   });
 
   // Meditate
@@ -1042,6 +1212,7 @@
     renderCurrent();
     paintOrbLabels();
     runClock();
+    if (id === 'write') { placeKindWheel(); }
   }
 
   /* ---------- the eclipse and its moons ---------- */

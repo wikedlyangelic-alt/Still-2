@@ -1,5 +1,5 @@
 // Still 2: keeps the app working offline. Your entries live in the phone's storage and in Supabase, not in this cache.
-const CACHE = 'still2-v2';
+const CACHE = 'still2-v3';
 const CORE = ['./', './index.html', './app.css', './app.js', './icons.js', './vendor/supabase.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
