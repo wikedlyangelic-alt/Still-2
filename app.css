@@ -309,6 +309,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .field input { min-height: 52px; padding: 0 16px; border: 1px solid #3A3552; border-radius: 14px; background: #100E1B; color: var(--on); font-size: 16px; }
 .msg { margin: 0; min-height: 20px; font-size: 14px; color: var(--on-2); }
+.version { margin: 0; font-size: 12px; color: var(--faint); text-align: center; }
 
 #toast { position: absolute; left: 50%; bottom: calc(var(--bottom) + 104px); transform: translate(-50%, 12px); width: max-content; max-width: calc(100% - 40px); display: flex; align-items: center; gap: 4px; padding: 12px 18px; border-radius: 14px; background: #2A2640; color: #F1ECFF; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 220ms ease, transform 300ms var(--ease); z-index: 20; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }

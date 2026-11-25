@@ -2,6 +2,7 @@
 (function () {
   'use strict';
 
+  var VERSION = 7; // keep in step with sw.js and the ?v= in index.html
   var SUPA = { url: 'https://icovzdxbbvbdbhcvdbrv.supabase.co', key: 'sb_publishable_rGazt0U4ycF564bSIBcBew_gO9RfORw' };
   var $ = function (id) { return document.getElementById(id); };
   var app = $('app');
@@ -1390,5 +1391,6 @@
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
-  window.Still2 = { data: function () { return JSON.parse(JSON.stringify(DB)); }, sync: syncNow, show: show };
+  $('a-version').textContent = 'Still 2 · version ' + VERSION;
+  window.Still2 = { version: VERSION, data: function () { return JSON.parse(JSON.stringify(DB)); }, sync: syncNow, show: show };
 })();

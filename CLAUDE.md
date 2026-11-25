@@ -11,7 +11,7 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - `icons.js` holds Material Symbols (Rounded, filled) as inline SVG paths, so icons never depend on a network font.
 - `eclipse.js` draws the eclipse as two SVGs (`STILL_ECLIPSE.small()` for the corner, `.big()` for the open eclipse). Warm light only: the big corona is fine filaments and a few softened streamers that fade outward through one radial gradient, plus a tight inner glow; strands flicker gently with CSS (`.fl`). The sun, its rays and the thin red edge sit in `.e-rot` groups that `frame()` turns.
 - Fonts: Newsreader (headings, entries) and Roboto Flex (everything else) from Google Fonts, cached by the service worker.
-- **Every deploy: bump `CACHE` in `sw.js`** (`still2-v1` → `still2-v2` …) so phones pick up the new files.
+- **Every deploy: bump the version in three places together**: `VERSION` in `app.js`, `CACHE` and `V` in `sw.js`, and the `?v=` on every script and style in `index.html`. The version shows at the bottom of the backup sheet (cloud icon). The service worker always revalidates with the network (`cache: 'no-cache'`), and the versioned URLs mean a phone can never run a new page with old code (GitHub Pages lets browsers keep files for 10 minutes).
 
 ## Screens and navigation
 
