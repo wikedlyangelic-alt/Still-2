@@ -1,6 +1,6 @@
 // Still 2: keeps the app working offline. Your entries live in the phone's storage and in Supabase, not in this cache.
-const CACHE = 'still2-v5';
-const CORE = ['./', './index.html', './app.css', './app.js', './icons.js', './vendor/supabase.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'still2-v6';
+const CORE = ['./', './index.html', './app.css', './app.js', './icons.js', './eclipse.js', './vendor/supabase.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));

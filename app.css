@@ -165,50 +165,52 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .chip[aria-pressed="true"] { background: #2A2640; border-color: var(--c); color: #F1ECFF; }
 
 /* meditate */
-.med { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding: 6px 16px calc(var(--bottom) + 104px); justify-content: center; }
-.med-shape { position: relative; width: 208px; height: 208px; align-self: center; transition: transform 900ms var(--ease); }
-.med-shape svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.med-shape.breathing svg { animation: breathe 8s cubic-bezier(.37, 0, .63, 1) infinite; }
-@keyframes breathe { 0%, 100% { transform: scale(.9) } 50% { transform: scale(1.06) } }
-.spin-slow { transform-box: fill-box; transform-origin: center; animation: spin 40s linear infinite; }
-.spin-slow.rev { animation-direction: reverse; }
+.med { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 10px 16px calc(var(--bottom) + 100px); justify-content: center; }
+.med-shape { position: relative; align-self: center; display: flex; flex-direction: column; align-items: center; transition: transform 900ms var(--ease); }
+.med-moon { width: 204px; height: 204px; display: block; overflow: visible; }
+.moon-body { transform-box: fill-box; transform-origin: center; }
+.med-shape.breathing .moon-body { animation: moonbreathe 8s cubic-bezier(.37, 0, .63, 1) infinite; }
+@keyframes moonbreathe { 0%, 100% { transform: scale(.985); } 50% { transform: scale(1.015); } }
+.mtick { stroke: #CFC6F2; stroke-linecap: round; opacity: .22; transition: opacity 600ms ease, stroke 600ms ease; }
+.mtick.big { opacity: .38; }
+.mtick.on { stroke: #F1EDFF; opacity: .9; }
 @keyframes spin { to { transform: rotate(360deg) } }
-.med-clock { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
-.med-clock .small { color: #C2D3F5; }
+.med-clock { position: relative; height: 128px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.med-clock .small { color: #B9B2D0; letter-spacing: .03em; }
 .med-settings { display: flex; flex-direction: column; gap: 6px; }
 .med-fade { transition: opacity 600ms ease, visibility 0s linear 0s; }
 
 /* the minute wheel, inside the circle */
-.dwheel { position: relative; width: 132px; height: 168px; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; overscroll-behavior: contain; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent); }
+.dwheel { position: relative; width: 132px; height: 114px; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; overscroll-behavior: contain; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent); }
 .dwheel::-webkit-scrollbar { display: none; }
-.wheel-row { display: flex; flex-direction: column; padding: 56px 0; }
-.wheel-item { width: 100%; height: 56px; flex: none; scroll-snap-align: center; border: none; background: transparent; color: #E3ECFF; font: 300 48px/1 var(--serif); font-variant-numeric: tabular-nums; cursor: pointer; transform-origin: center; padding: 0; }
+.wheel-row { display: flex; flex-direction: column; padding: 38px 0; }
+.wheel-item { width: 100%; height: 38px; flex: none; scroll-snap-align: center; border: none; background: transparent; color: #F1EDFF; font: 300 38px/1 var(--serif); font-variant-numeric: tabular-nums; cursor: pointer; transform-origin: center; padding: 0; }
 .wheel-item:focus-visible { outline-offset: -4px; border-radius: 12px; }
-.d-count { font: 300 58px/1 var(--serif); font-variant-numeric: tabular-nums; color: #E3ECFF; }
+.d-count { display: flex; align-items: center; font: 300 46px/1.1 var(--serif); font-variant-numeric: tabular-nums; letter-spacing: .01em; color: #F4F1FF; }
 .med-shape:not(.breathing) .d-count { display: none; }
 .med-shape.breathing .dwheel { display: none; }
-.med-clock .small { margin-top: -6px; }
+.med-clock .small { margin-top: 0; }
 
 .rows { display: flex; flex-direction: column; }
 .row-btn { min-height: 56px; padding: 0 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: none; border-bottom: 1px solid #29263A; background: transparent; color: var(--on); font-size: 16px; cursor: pointer; text-align: left; }
 .row-l { display: inline-flex; align-items: center; gap: 14px; }
-.row-l .msr { font-size: 20px; color: #A7C6FF; }
-.row-val { color: #B4CEFF; font-size: 15px; }
-.row-vol { min-height: 56px; padding: 0 8px; display: flex; align-items: center; gap: 12px; color: #A7C6FF; }
+.row-l .msr { font-size: 20px; color: #C8BBFF; }
+.row-val { color: #CFC6F2; font-size: 15px; }
+.row-vol { min-height: 56px; padding: 0 8px; display: flex; align-items: center; gap: 12px; color: #C8BBFF; }
 .row-vol .msr { font-size: 20px; }
 .row-vol input { flex: 1; min-width: 0; height: 48px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; --v: 80%; }
-.row-vol input::-webkit-slider-runnable-track { height: 6px; border-radius: 6px; background: linear-gradient(to right, #A7C6FF var(--v), #2E2A44 var(--v)); }
-.row-vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #D6E3FF; box-shadow: 0 0 0 6px rgba(167, 198, 255, .16); }
+.row-vol input::-webkit-slider-runnable-track { height: 6px; border-radius: 6px; background: linear-gradient(to right, #C8BBFF var(--v), #2E2A44 var(--v)); }
+.row-vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #EDE8FF; box-shadow: 0 0 0 6px rgba(200, 187, 255, .18); }
 .row-vol input::-moz-range-track { height: 6px; border-radius: 6px; background: #2E2A44; }
-.row-vol input::-moz-range-progress { height: 6px; border-radius: 6px; background: #A7C6FF; }
-.row-vol input::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #D6E3FF; }
-.big-btn { min-height: 60px; border: 1px solid transparent; border-radius: 9999px; background: #A7C6FF; color: #0B2A5E; font-weight: 600; font-size: 16px; cursor: pointer; transition: border-radius 300ms var(--ease), background-color 500ms ease, color 500ms ease, border-color 500ms ease; }
-.big-btn.running { align-self: center; min-width: 140px; min-height: 52px; padding: 0 32px; background: transparent; color: #9FB5DD; border-color: #2F3B58; }
+.row-vol input::-moz-range-progress { height: 6px; border-radius: 6px; background: #C8BBFF; }
+.row-vol input::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #EDE8FF; }
+.big-btn { min-height: 60px; border: 1px solid transparent; border-radius: 9999px; background: #C8BBFF; color: #2E2170; font-weight: 600; font-size: 16px; cursor: pointer; transition: border-radius 300ms var(--ease), background-color 500ms ease, color 500ms ease, border-color 500ms ease; }
+.big-btn.running { align-self: center; min-width: 140px; min-height: 52px; padding: 0 32px; background: transparent; color: #B7AEE0; border-color: #34304A; }
 
 /* a session: only the circle and the countdown */
 #app.focus .med-fade { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 600ms ease, visibility 0s linear 600ms; }
 #app.focus #eclipse { opacity: 0; pointer-events: none; }
-#app.focus .med-shape { transform: translateY(var(--fy, 0px)) scale(1.18); }
+#app.focus .med-shape { transform: translateY(var(--fy, 0px)) scale(1.06); }
 #app.focus .stars { opacity: .6; transition: opacity 1.2s ease; }
 
 /* hold an entry to edit it */
@@ -278,17 +280,21 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 #grow { position: absolute; width: 64px; height: 64px; border-radius: 50%; background: var(--bg); opacity: 0; pointer-events: none; }
 #grow.go { animation: grow 900ms var(--ease) forwards; }
 @keyframes grow { 0% { transform: scale(1); opacity: 1 } 55% { transform: scale(30); opacity: 1 } 100% { transform: scale(30); opacity: 0 } }
-#eclipse { position: absolute; width: 180px; height: 180px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; transform: translate(var(--mx), var(--my)) scale(.356); transition: transform 640ms var(--ease), opacity 600ms ease; z-index: 5; }
-#eclipse svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 10px 18px rgba(3, 2, 10, .7)); }
+#eclipse { position: absolute; width: 300px; height: 300px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; pointer-events: none; outline: none; transform: translate(var(--mx), var(--my)) scale(.2133); transition: transform 640ms var(--ease), opacity 600ms ease; z-index: 5; }
+#eclipse svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; pointer-events: none; }
+.ecl-small { transition: opacity 360ms ease; }
+.ecl-big { opacity: 0; transition: opacity 420ms ease 120ms; }
 #app.nav-open #eclipse { transform: none; }
-#eclipse .e-line { stroke-width: 5.5; transition: stroke-width 500ms ease; }
-#eclipse .e-corona { stroke-width: 18; transition: stroke-width 500ms ease; }
-#eclipse .e-dot { r: 7px; transition: r 500ms ease; }
-#eclipse .e-halo { r: 14px; transition: r 500ms ease; }
-#app.nav-open #eclipse .e-line { stroke-width: 2.2; }
-#app.nav-open #eclipse .e-corona { stroke-width: 10; }
-#app.nav-open #eclipse .e-dot { r: 3.4px; }
-#app.nav-open #eclipse .e-halo { r: 9px; }
+#app.nav-open .ecl-small { opacity: 0; }
+#app.nav-open .ecl-big { opacity: 1; }
+.ecl-hit { position: absolute; inset: 0; border-radius: 50%; pointer-events: auto; }
+#app.nav-open .ecl-hit { inset: 80px; }
+#eclipse:focus-visible .ecl-hit { box-shadow: 0 0 0 10px var(--primary); }
+#app.nav-open #eclipse:focus-visible .ecl-hit { box-shadow: 0 0 0 2px var(--primary); }
+/* the corona flickers a little, each strand at its own pace */
+@keyframes flick { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+#eclipse .fl { animation: flick var(--fd) ease-in-out var(--fo) infinite; }
+#app:not(.nav-open) .ecl-big .fl { animation-play-state: paused; }
 
 /* sheets */
 .sheet { position: absolute; inset: 0; z-index: 10; pointer-events: none; }

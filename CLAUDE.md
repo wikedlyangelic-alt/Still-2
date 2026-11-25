@@ -9,6 +9,7 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - No build step. Plain `index.html`, `app.css`, `app.js`, `icons.js`, `sw.js`, `manifest.webmanifest`.
 - `vendor/supabase.js` is the UMD build of `@supabase/supabase-js` 2.119.2, checked in so the app works offline.
 - `icons.js` holds Material Symbols (Rounded, filled) as inline SVG paths, so icons never depend on a network font.
+- `eclipse.js` draws the eclipse as two SVGs (`STILL_ECLIPSE.small()` for the corner, `.big()` for the open eclipse). Warm light only: the big corona is fine filaments and a few softened streamers that fade outward through one radial gradient, plus a tight inner glow; strands flicker gently with CSS (`.fl`). The sun, its rays and the thin red edge sit in `.e-rot` groups that `frame()` turns.
 - Fonts: Newsreader (headings, entries) and Roboto Flex (everything else) from Google Fonts, cached by the service worker.
 - **Every deploy: bump `CACHE` in `sw.js`** (`still2-v1` → `still2-v2` …) so phones pick up the new files.
 
@@ -16,13 +17,13 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 
 - Write (home), Gratitude, Master your Mind, Meditate, Affirmations (coming next), Patterns.
 - Navigation is the eclipse: a small eclipse sits in the bottom-right corner of every screen. Tapping it clears the screen and grows it into the middle with six "moon" circles around it. Tapping the eclipse again returns to the screen you were on. Tapping a moon zooms into that screen.
-- The bright point on the eclipse's rim is the sun. Moons near it are lit; far ones fall into shadow (see `light()` in `app.js`).
+- The bright point on the eclipse's rim is the sun. Moons near it are lit in warm light; far ones fall into shadow (see `light()` in `app.js`). The eclipse button is 300px, scaled to 64px in the corner; it ignores taps except on `.ecl-hit`, which shrinks to the disc when open so the moons stay tappable.
 - Gratitude and Master your Mind use the star line: a light travels down the line as you scroll and lights the stars it passes (`Timeline` in `app.js`). Days are separated by a medallion with the date. Long days show 6 entries, then "Show N more".
 - The phone's back gesture closes sheets, the eclipse, the voice blob and ends a meditation (the `layers` stack).
 - Write is centred, with a live clock (seconds) under the date. Under it, an up-and-down kind wheel: Gratitude, then the five Master your Mind kinds. When it stops, the middle one locks in: the question, placeholder, Save button, caret and voice blob take that kind's colour, and Save goes to `moments` or `mind_entries`. It starts on Gratitude each time the app opens. The mic opens a full-screen moving blob with the words appearing underneath (`drawBlob`); tap the blob to pause or keep talking. Entries in the lists show their time to the second.
 - Hold an entry in Gratitude or Master your Mind (about half a second) to open a small see-through glass editing bubble that floats up from the entry (kept in the top third so the keyboard never covers it): change the text (and, for Master your Mind, the kind with a small up-and-down selector in its top-right corner; tap it for the next kind), Save or Delete, both with Undo. Tap outside or use back to close. Enter on a focused entry opens it too.
 - Gratitude and Master your Mind stars zigzag left and right of the line (`zigX`, stable per entry id); the line is an SVG path and the light runs along it.
-- Meditate: an up-and-down minute wheel inside the circle (1–60, then 75, 90, 120; the countdown replaces it during a session), sounds (Silence, Deep hum, Soft rain, Ocean waves, Night wind) and end bells (Singing bowl, Temple bell, Soft chimes, Deep gong, No bell), all made with WebAudio so they work offline, plus a volume slider. Begin fades everything except the circle and countdown; the settings come back when it ends.
+- Meditate: a lavender moon (SVG with a turbulence surface texture, a soft shadow line and faint earthshine) that fills from a thin crescent to full over the session, inside a ring of 60 marks that light up as time passes while a small gold sun walks round (`paintMoon`). Under it, an up-and-down minute wheel (1–60, then 75, 90, 120; the countdown replaces it during a session), sounds (Silence, Deep hum, Soft rain, Ocean waves, Night wind) and end bells (Singing bowl, Temple bell, Soft chimes, Deep gong, No bell), all made with WebAudio so they work offline, plus a volume slider. Begin fades everything except the circle and countdown; the settings come back when it ends.
 - Every save, edit and delete shows a toast with Undo. Entries are always found by id (`findEntry`), because a sync can swap the object; removal sets `deleted_at` so it syncs.
 
 ## Data
@@ -44,7 +45,7 @@ Good = today's gratitude moments + "Thinking of others". Hard = angry + afraid +
 ## Rules
 
 - No sample or placeholder data in the app. Empty states explain what will appear.
-- Keep colours to the night palette: background #100E1B / #0B0A13, lavender #C8BBFF, gold #EEC56C for gratitude. Emotion colours only in Master your Mind: others #7DDBA8, angry #FF8A7A, afraid #8AB6FF, selfish #FFB15C, resentful #E89BEF.
+- Keep colours to the night palette: background #100E1B / #0B0A13, lavender #C8BBFF, gold #EEC56C for gratitude. The eclipse's light is warm white and gold, never purple. Emotion colours only in Master your Mind: others #7DDBA8, angry #FF8A7A, afraid #8AB6FF, selfish #FFB15C, resentful #E89BEF.
 - Touch targets at least 48px. Respect reduced motion.
 - Escape user text before putting it in HTML (`esc()`).
 - Test at phone size (390×844) in a headless browser before pushing; there should be no console errors.

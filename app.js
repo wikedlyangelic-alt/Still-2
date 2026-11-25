@@ -955,16 +955,35 @@
   });
 
   // Meditate
-  function blob(r0, amp, lobes) {
-    var pts = [];
-    for (var i = 0; i <= 240; i++) {
-      var a = (i / 240) * Math.PI * 2, r = r0 + amp * Math.cos(lobes * a);
-      pts.push((110 + r * Math.cos(a)).toFixed(2) + ' ' + (110 + r * Math.sin(a)).toFixed(2));
+  // the moon: lit from the right, filling from a thin crescent to full over a session
+  var MOON = { cx: 120, cy: 120, r: 84, ring: 110 };
+  (function buildTicks() {
+    var h = '';
+    for (var i = 0; i < 60; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 30, big = i % 5 === 0, r1 = MOON.ring - 2, r2 = r1 - (big ? 8 : 4.5);
+      h += '<line class="mtick' + (big ? ' big' : '') + '" stroke-width="' + (big ? 1.1 : 0.7) + '" x1="' + (MOON.cx + r1 * Math.cos(a)).toFixed(2) + '" y1="' + (MOON.cy + r1 * Math.sin(a)).toFixed(2) + '" x2="' + (MOON.cx + r2 * Math.cos(a)).toFixed(2) + '" y2="' + (MOON.cy + r2 * Math.sin(a)).toFixed(2) + '"/>';
     }
-    return 'M' + pts.join(' L') + 'Z';
+    $('d-ticks').innerHTML = h;
+  })();
+  var tickEls = $('d-ticks').querySelectorAll('.mtick'), ticksLit = -1;
+  function shadePath(f) {
+    var cx = MOON.cx, cy = MOON.cy, R = MOON.r;
+    if (f >= 0.999) { return 'M0 0'; }
+    var full = 'M' + cx + ' ' + (cy - R) + ' A' + R + ' ' + R + ' 0 1 1 ' + cx + ' ' + (cy + R) + ' A' + R + ' ' + R + ' 0 1 1 ' + cx + ' ' + (cy - R) + 'Z';
+    if (f <= 0.001) { return full; }
+    var rx = (Math.abs(1 - 2 * f) * R).toFixed(2), sw = f < 0.5 ? 0 : 1;
+    return 'M' + cx + ' ' + (cy - R) + ' A' + R + ' ' + R + ' 0 0 0 ' + cx + ' ' + (cy + R) + ' A' + rx + ' ' + R + ' 0 0 ' + sw + ' ' + cx + ' ' + (cy - R) + 'Z';
   }
-  $('d-burst').setAttribute('d', blob(102, 6, 12));
-  $('d-burst2').setAttribute('d', blob(80, 4, 8));
+  // f: how much of the moon is lit; p: how far through the session (moves the gold sun and lights the marks)
+  function paintMoon(f, p) {
+    $('d-shade').setAttribute('d', shadePath(f));
+    var a = -Math.PI / 2 + p * Math.PI * 2, x = (MOON.cx + MOON.ring * Math.cos(a)).toFixed(2), y = (MOON.cy + MOON.ring * Math.sin(a)).toFixed(2);
+    $('d-sun').setAttribute('cx', x); $('d-sun').setAttribute('cy', y); $('d-sun-ring').setAttribute('cx', x); $('d-sun-ring').setAttribute('cy', y);
+    var n = Math.min(60, Math.floor(p * 60 + 0.0001));
+    if (n !== ticksLit) { for (var i = 0; i < tickEls.length; i++) { tickEls[i].classList.toggle('on', i < n); } ticksLit = n; }
+  }
+  var IDLE_PHASE = 0.3;
+  paintMoon(IDLE_PHASE, 0);
   var MIN_OPTS = [];
   for (var mi = 1; mi <= 60; mi++) { MIN_OPTS.push(mi); }
   MIN_OPTS.push(75, 90, 120);
@@ -984,7 +1003,7 @@
   function saveMed() { try { localStorage.setItem('still2-meditate', JSON.stringify({ mins: med.mins, sound: med.sound, bell: med.bell, vol: med.vol })); } catch (e) {} }
 
   // the minute wheel sits inside the circle: swipe up or down, the middle number is the one you get
-  var wheel = $('d-wheel'), ITEM = 56, wheelIdx = MIN_OPTS.indexOf(med.mins), wheelSettle = null, wheelTick = false;
+  var wheel = $('d-wheel'), ITEM = 38, wheelIdx = MIN_OPTS.indexOf(med.mins), wheelSettle = null, wheelTick = false;
   wheel.innerHTML = '<div class="wheel-row">' + MIN_OPTS.map(function (m, i) { return '<button type="button" class="wheel-item" data-i="' + i + '" aria-label="' + plural(m, 'minute') + '" aria-pressed="false" tabindex="-1">' + m + '</button>'; }).join('') + '</div>';
   var wheelItems = wheel.querySelectorAll('.wheel-item');
   function paintWheel() {
@@ -1002,7 +1021,7 @@
     wheelIdx = i;
     wheelItems[i].setAttribute('aria-pressed', 'true'); wheelItems[i].tabIndex = 0;
     if (med.mins !== MIN_OPTS[i]) { med.mins = MIN_OPTS[i]; saveMed(); }
-    if (!med.running) { $('d-clock').textContent = med.mins + ':00'; if (!quiet) { $('d-sub').textContent = med.mins === 1 ? 'minute' : 'minutes'; } }
+    if (!med.running) { $('d-clock').textContent = med.mins + ':00'; if (!quiet) { $('d-sub').textContent = med.mins === 1 ? 'minute' : 'minutes'; paintMoon(IDLE_PHASE, 0); } }
   }
   function scrollWheelTo(i, smooth) {
     var top = i * ITEM;
@@ -1186,8 +1205,10 @@
     } catch (e) {}
   }
   function tick() {
-    var left = Math.max(0, Math.round((med.end - Date.now()) / 1000));
+    var total = med.mins * 60, leftMs = Math.max(0, med.end - Date.now()), left = Math.round(leftMs / 1000);
+    var p = Math.min(1, 1 - leftMs / (total * 1000));
     $('d-clock').textContent = Math.floor(left / 60) + ':' + pad(left % 60);
+    paintMoon(0.03 + 0.97 * p, p);
     if (left <= 0) { finishMed(true); }
   }
   function finishMed(done, fromBack) {
@@ -1200,8 +1221,9 @@
     app.classList.remove('focus');
     if (!fromBack) { popLayer(); }
     paintMed();
-    $('d-sub').textContent = done ? 'Done. Well sat.' : (med.mins === 1 ? 'minute' : 'minutes');
+    $('d-sub').textContent = done ? 'Full moon. Well sat.' : (med.mins === 1 ? 'minute' : 'minutes');
     $('d-clock').textContent = done ? '0:00' : med.mins + ':00';
+    paintMoon(done ? 1 : IDLE_PHASE, done ? 1 : 0);
   }
   $('d-run').addEventListener('click', function () {
     if (med.running) { finishMed(false); return; }
@@ -1265,6 +1287,7 @@
   ];
   var ANGLES = [-90, -30, 30, 90, 150, 210];
   var orbsEl = $('orbs'), ecl = $('eclipse'), navOpen = false;
+  if (window.STILL_ECLIPSE) { ecl.insertAdjacentHTML('afterbegin', window.STILL_ECLIPSE.small() + window.STILL_ECLIPSE.big()); }
   orbsEl.innerHTML = PAGES.map(function (p, i) {
     return '<div class="orb" data-i="' + i + '" style="--delay:' + (140 + i * 40) + 'ms"><div class="orb-bob" style="--bob:' + (4.8 + (i * 0.9) % 2.4).toFixed(1) + 's;--bobd:' + (-i * 1.6).toFixed(1) + 's"><button type="button" class="moon" data-page="' + p.id + '" aria-label="Open ' + p.name + '" tabindex="-1"><span class="msr" aria-hidden="true">' + iconSvg(p.icon) + '</span></button><span class="orb-label" aria-hidden="true">' + p.name + '</span></div></div>';
   }).join('');
@@ -1283,7 +1306,7 @@
       el.style.setProperty('--dx', Math.round((G.cx - x) * 0.7) + 'px'); el.style.setProperty('--dy', Math.round((G.cy - y) * 0.7) + 'px');
       return { x: x, y: y };
     });
-    ecl.style.left = (G.cx - 90) + 'px'; ecl.style.top = (G.cy - 90) + 'px';
+    ecl.style.left = (G.cx - 150) + 'px'; ecl.style.top = (G.cy - 150) + 'px';
     var mx = W - 20 - 32, my = H - 24 - bottom - 32;
     ecl.style.setProperty('--mx', Math.round(mx - G.cx) + 'px'); ecl.style.setProperty('--my', Math.round(my - G.cy) + 'px');
     $('nav-hint').style.top = Math.round(G.cy + G.R + 76) + 'px';
@@ -1330,7 +1353,7 @@
   });
 
   // The bright point on the eclipse's edge is the sun. Circles near it light up; the far ones fall into shadow.
-  var rot = 0, lastT = 0, rotEl = $('e-rot');
+  var rot = 0, lastT = 0, rotEls = ecl.querySelectorAll('.e-rot');
   function mix(a, b, k) { return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * k) + ',' + Math.round(a[1] + (b[1] - a[1]) * k) + ',' + Math.round(a[2] + (b[2] - a[2]) * k) + ')'; }
   function light() {
     var sa = (225 + rot) * Math.PI / 180, sx = G.cx + 64 * Math.cos(sa), sy = G.cy + 64 * Math.sin(sa);
@@ -1338,17 +1361,18 @@
       var p = G.pos[i], vx = sx - p.x, vy = sy - p.y, d = Math.sqrt(vx * vx + vy * vy) || 1, ux = vx / d, uy = vy / d;
       var k = Math.pow(Math.max(0, Math.min(1, (G.R + 64 - d) / 128)), 1.6);
       var m = moonEls[i];
-      m.style.background = 'radial-gradient(circle at ' + (50 + ux * 32).toFixed(0) + '% ' + (50 + uy * 32).toFixed(0) + '%, ' + mix([24, 21, 40], [74, 66, 118], k) + ' 0%, ' + mix([12, 11, 20], [24, 21, 42], k) + ' 55%, #08070E 85%)';
-      m.style.boxShadow = 'inset ' + (-ux * (2 + k * 2)).toFixed(1) + 'px ' + (-uy * (2 + k * 2)).toFixed(1) + 'px ' + (3 + k * 3).toFixed(1) + 'px -2px rgba(240,235,255,' + (0.12 + k * 0.78).toFixed(2) + '), inset 0 0 0 1px rgba(210,200,255,' + (0.03 + k * 0.2).toFixed(2) + '), ' + (ux * 6).toFixed(1) + 'px ' + (uy * 6).toFixed(1) + 'px 18px -6px rgba(246,222,170,' + (0.04 + k * 0.42).toFixed(2) + '), 0 10px 22px rgba(0,0,0,.6)';
-      m.style.color = 'rgba(237,232,255,' + (0.62 + k * 0.38).toFixed(2) + ')';
-      labelEls[i].style.color = 'rgba(222,215,240,' + (0.6 + k * 0.4).toFixed(2) + ')';
+      m.style.background = 'radial-gradient(circle at ' + (50 + ux * 32).toFixed(0) + '% ' + (50 + uy * 32).toFixed(0) + '%, ' + mix([30, 26, 36], [92, 78, 62], k) + ' 0%, ' + mix([14, 12, 20], [30, 26, 30], k) + ' 55%, #08070D 85%)';
+      m.style.boxShadow = 'inset ' + (-ux * (2 + k * 2)).toFixed(1) + 'px ' + (-uy * (2 + k * 2)).toFixed(1) + 'px ' + (3 + k * 3).toFixed(1) + 'px -2px rgba(255,242,220,' + (0.1 + k * 0.8).toFixed(2) + '), inset 0 0 0 1px rgba(255,236,205,' + (0.03 + k * 0.16).toFixed(2) + '), ' + (ux * 6).toFixed(1) + 'px ' + (uy * 6).toFixed(1) + 'px 18px -6px rgba(246,214,150,' + (0.04 + k * 0.42).toFixed(2) + '), 0 10px 22px rgba(0,0,0,.6)';
+      m.style.color = 'rgba(255,246,230,' + (0.6 + k * 0.4).toFixed(2) + ')';
+      labelEls[i].style.color = 'rgba(226,219,240,' + (0.62 + k * 0.38).toFixed(2) + ')';
     }
   }
   function frame(t) {
     if (!reduceMotion && t - lastT > 33) {
       rot = (rot + (lastT ? (t - lastT) : 0) / 1000 * 18) % 360;
       lastT = t;
-      rotEl.setAttribute('transform', 'rotate(' + rot.toFixed(2) + ' 90 90)');
+      var tr = 'rotate(' + rot.toFixed(2) + ' 150 150)';
+      for (var ri = 0; ri < rotEls.length; ri++) { rotEls[ri].setAttribute('transform', tr); }
       if (navOpen) { light(); }
     } else if (!lastT) { lastT = t; }
     requestAnimationFrame(frame);
