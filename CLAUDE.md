@@ -1,6 +1,6 @@
 # Still 2
 
-A gratitude app. Andrew is the owner and first user. This repo is the "test drive" build: an installable web app (PWA) served by GitHub Pages at https://wikedlyangelic-alt.github.io/still-2/. The long-term plan is a native Expo + Supabase build; the design and the data model here carry over to it.
+A gratitude app. Andrew is the owner and first user. This repo is the "test drive" build: an installable web app (PWA) served by GitHub Pages at https://wikedlyangelic-alt.github.io/Still-2/. The long-term plan is a native Expo + Supabase build; the design and the data model here carry over to it.
 
 The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep working. Never change its tables or behaviour from here.
 
