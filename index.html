@@ -22,9 +22,12 @@
   <main id="pages">
 
     <section class="page" id="page-write" aria-label="Write">
-      <header class="topbar">
-        <p class="date" id="w-date"></p>
-        <button type="button" class="icon-btn" id="w-cloud" aria-label="Back up your moments"><span class="msr" id="w-cloud-icon">cloud_off</span></button>
+      <header class="topbar centered">
+        <div class="when">
+          <p class="date" id="w-date"></p>
+          <p class="clock" id="w-clock"></p>
+        </div>
+        <button type="button" class="icon-btn cloud-btn" id="w-cloud" aria-label="Back up your moments"><span class="msr" id="w-cloud-icon">cloud_off</span></button>
       </header>
       <div class="write">
         <h1 class="display">What are you grateful for?</h1>
@@ -33,10 +36,29 @@
           <textarea id="w-text" rows="3" maxlength="4000" placeholder="Write it down, or tap the mic and say it"></textarea>
         </label>
         <div class="write-actions">
-          <button type="button" class="round-btn" id="w-mic" aria-label="Say it out loud" aria-pressed="false"><span class="msr">mic</span></button>
+          <button type="button" class="round-btn" id="w-mic" aria-label="Say it out loud"><span class="msr">mic</span></button>
           <button type="button" class="pill-btn" id="w-save">Save moment</button>
         </div>
         <p class="muted" id="w-count"></p>
+      </div>
+      <div class="listen" id="w-listen" aria-hidden="true">
+        <button type="button" class="blob-btn" id="w-blob" aria-label="Stop listening">
+          <span class="blob-glow" id="w-glow" aria-hidden="true"></span>
+          <svg viewBox="-150 -150 300 300" aria-hidden="true">
+            <defs>
+              <radialGradient id="blob-fill" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#FFF4D6"></stop><stop offset=".38" stop-color="#F2CF7E"></stop><stop offset=".78" stop-color="#C9A0E8"></stop><stop offset="1" stop-color="#7E6FD6"></stop></radialGradient>
+              <radialGradient id="blob-sheen" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".55"></stop><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"></stop></radialGradient>
+            </defs>
+            <path id="w-blob-path" fill="url(#blob-fill)"></path>
+            <path id="w-blob-inner" fill="url(#blob-sheen)"></path>
+          </svg>
+        </button>
+        <p class="listen-state" id="w-listen-state" role="status">Listening</p>
+        <div class="transcript" id="w-transcript"></div>
+        <div class="listen-actions">
+          <button type="button" class="pill-btn tonal" id="w-listen-done">Done</button>
+          <button type="button" class="pill-btn" id="w-listen-save">Save moment</button>
+        </div>
       </div>
     </section>
 
@@ -69,21 +91,24 @@
     </section>
 
     <section class="page" id="page-meditate" aria-label="Meditate">
-      <header class="pagehead">
+      <header class="pagehead med-fade">
         <h1 class="title">Meditate</h1>
         <p class="muted small">Sit, breathe, and let it be slow</p>
       </header>
       <div class="med">
         <div class="med-shape" id="d-shape">
           <svg viewBox="0 0 220 220" aria-hidden="true"><path class="spin-slow" id="d-burst" fill="#26406E"></path><path class="spin-slow rev" id="d-burst2" fill="#30508A"></path></svg>
-          <div class="med-clock"><span id="d-clock">10:00</span><span class="small" id="d-sub">minutes</span></div>
+          <div class="med-clock" role="timer" aria-live="off"><span id="d-clock">10:00</span><span class="small" id="d-sub">minutes</span></div>
         </div>
-        <div class="seg" id="d-mins" role="group" aria-label="Length in minutes"></div>
-        <div class="rows">
-          <button type="button" class="row-btn" id="d-sound"><span>Ambient sound</span><span class="row-val" id="d-sound-val">Silence</span></button>
-          <button type="button" class="row-btn" id="d-bell" role="switch" aria-checked="true"><span>Bell at the end</span><span class="switch" aria-hidden="true"><span></span></span></button>
+        <div class="med-settings med-fade">
+          <div class="wheel" id="d-wheel" role="group" aria-label="Length in minutes. Swipe or use the arrow keys."></div>
+          <div class="rows">
+            <button type="button" class="row-btn" id="d-sound"><span class="row-l"><span class="msr">music_note</span>Sound</span><span class="row-val" id="d-sound-val">Silence</span></button>
+            <button type="button" class="row-btn" id="d-bell"><span class="row-l"><span class="msr">notifications</span>Bell at the end</span><span class="row-val" id="d-bell-val">Singing bowl</span></button>
+            <label class="row-vol"><span class="msr" aria-hidden="true">volume_down</span><span class="sr-only">Volume</span><input type="range" id="d-vol" min="0" max="100" step="1"><span class="msr" aria-hidden="true">volume_up</span></label>
+          </div>
         </div>
-        <button type="button" class="big-btn" id="d-run">Begin session</button>
+        <button type="button" class="big-btn" id="d-run">Begin</button>
       </div>
     </section>
 
@@ -139,6 +164,15 @@
         <textarea id="mind-text" rows="3" maxlength="4000"></textarea>
       </label>
       <button type="button" class="pill-btn wide" id="mind-save">Save entry</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet-pick" aria-hidden="true">
+    <div class="scrim" data-close></div>
+    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="pick-title">
+      <div class="sheet-head"><h2 id="pick-title"></h2><button type="button" class="icon-btn" data-close aria-label="Close"><span class="msr">close</span></button></div>
+      <p class="muted small" id="pick-note">Tap one to hear it.</p>
+      <div class="pick-list" id="pick-list" role="radiogroup" aria-labelledby="pick-title"></div>
     </div>
   </div>
 
