@@ -30,7 +30,7 @@
         <button type="button" class="icon-btn cloud-btn" id="w-cloud" aria-label="Back up your moments"><span class="msr" id="w-cloud-icon">cloud_off</span></button>
       </header>
       <div class="write">
-        <div class="kind-wheel" id="w-kinds" role="group" aria-label="What you are writing. Swipe sideways to change."></div>
+        <div class="kind-wheel" id="w-kinds" role="group" aria-label="What you are writing. Swipe up or down to change."></div>
         <h1 class="display" id="w-ask">What are you grateful for?</h1>
         <label class="write-field">
           <span class="sr-only" id="w-text-label">Your moment</span>
@@ -98,10 +98,9 @@
       <div class="med">
         <div class="med-shape" id="d-shape">
           <svg viewBox="0 0 220 220" aria-hidden="true"><path class="spin-slow" id="d-burst" fill="#26406E"></path><path class="spin-slow rev" id="d-burst2" fill="#30508A"></path></svg>
-          <div class="med-clock" role="timer" aria-live="off"><span id="d-clock">10:00</span><span class="small" id="d-sub">minutes</span></div>
+          <div class="med-clock"><div class="dwheel" id="d-wheel" role="group" aria-label="Length in minutes. Swipe up or down, or use the arrow keys."></div><span class="d-count" id="d-clock" role="timer" aria-live="off">10:00</span><span class="small" id="d-sub">minutes</span></div>
         </div>
         <div class="med-settings med-fade">
-          <div class="wheel" id="d-wheel" role="group" aria-label="Length in minutes. Swipe or use the arrow keys."></div>
           <div class="rows">
             <button type="button" class="row-btn" id="d-sound"><span class="row-l"><span class="msr">music_note</span>Sound</span><span class="row-val" id="d-sound-val">Silence</span></button>
             <button type="button" class="row-btn" id="d-bell"><span class="row-l"><span class="msr">notifications</span>Bell at the end</span><span class="row-val" id="d-bell-val">Singing bowl</span></button>
@@ -167,15 +166,15 @@
     </div>
   </div>
 
-  <div class="sheet float" id="sheet-edit" aria-hidden="true">
+  <div class="sheet bubble" id="sheet-edit" aria-hidden="true">
     <div class="scrim" data-close></div>
-    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="edit-title">
-      <div class="sheet-head"><div><h2 id="edit-title">Edit moment</h2><p class="edit-when" id="edit-when"></p></div><button type="button" class="icon-btn" data-close aria-label="Close"><span class="msr">close</span></button></div>
-      <div class="chips wrap" id="edit-kinds" role="radiogroup" aria-label="Kind" hidden></div>
-      <label class="edit-field"><span class="sr-only">Text</span><textarea id="edit-text" rows="5" maxlength="4000"></textarea></label>
+    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="edit-when" id="edit-bubble">
+      <p class="edit-when" id="edit-when"></p>
+      <label class="edit-field"><span class="sr-only">Text</span><textarea id="edit-text" rows="2" maxlength="4000"></textarea></label>
+      <div class="edit-dots" id="edit-kinds" role="radiogroup" aria-label="Kind" hidden></div>
       <div class="edit-actions">
         <button type="button" class="text-btn danger" id="edit-delete">Delete</button>
-        <button type="button" class="pill-btn" id="edit-save">Save changes</button>
+        <button type="button" class="pill-btn sm" id="edit-save">Save</button>
       </div>
     </div>
   </div>

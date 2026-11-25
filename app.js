@@ -509,29 +509,29 @@
   }
   document.addEventListener('visibilitychange', runClock);
 
-  // the kind wheel: swipe sideways; when it stops, the one in the middle locks in and Write takes its colour
+  // the kind wheel: swipe up or down; when it stops, the one in the middle locks in and Write takes its colour
   var wKind = 'gratitude', kwEl = $('w-kinds'), kwTick = false, kwSettle = null, kwFirst = true;
   kwEl.innerHTML = '<div class="kw-row">' + WRITE_ORDER.map(function (k) {
     return '<button type="button" class="kw-item" data-k="' + k + '" style="--c:' + KINDS[k].color + '" aria-pressed="false" tabindex="-1"><i></i>' + esc(KINDS[k].label) + '</button>';
   }).join('') + '</div>';
   var kwItems = kwEl.querySelectorAll('.kw-item');
-  function kwCenter(el) { return el.offsetLeft + el.offsetWidth / 2; }
+  function kwCenter(el) { return el.offsetTop + el.offsetHeight / 2; }
   function paintKindWheel() {
-    var mid = kwEl.scrollLeft + kwEl.clientWidth / 2;
+    var mid = kwEl.scrollTop + kwEl.clientHeight / 2;
     for (var i = 0; i < kwItems.length; i++) {
-      var d = Math.min(220, Math.abs(kwCenter(kwItems[i]) - mid));
-      kwItems[i].style.opacity = (1 - d / 220 * 0.7).toFixed(3);
-      kwItems[i].style.transform = 'scale(' + (1 - d / 220 * 0.14).toFixed(3) + ')';
+      var dy = kwCenter(kwItems[i]) - mid, d = Math.min(110, Math.abs(dy));
+      kwItems[i].style.opacity = (1 - d / 110 * 0.72).toFixed(3);
+      kwItems[i].style.transform = 'perspective(320px) rotateX(' + (-Math.max(-110, Math.min(110, dy)) / 110 * 38).toFixed(1) + 'deg) scale(' + (1 - d / 110 * 0.16).toFixed(3) + ')';
     }
   }
   function nearestKind() {
-    var mid = kwEl.scrollLeft + kwEl.clientWidth / 2, best = 0, bd = 1e9;
+    var mid = kwEl.scrollTop + kwEl.clientHeight / 2, best = 0, bd = 1e9;
     for (var i = 0; i < kwItems.length; i++) { var d = Math.abs(kwCenter(kwItems[i]) - mid); if (d < bd) { bd = d; best = i; } }
     return best;
   }
   function scrollKindTo(i, smooth) {
-    var left = kwCenter(kwItems[i]) - kwEl.clientWidth / 2;
-    if (smooth && !reduceMotion && kwEl.scrollTo) { kwEl.scrollTo({ left: left, behavior: 'smooth' }); } else { kwEl.scrollLeft = left; paintKindWheel(); lockKind(i, true); }
+    var top = kwCenter(kwItems[i]) - kwEl.clientHeight / 2;
+    if (smooth && !reduceMotion && kwEl.scrollTo) { kwEl.scrollTo({ top: top, behavior: 'smooth' }); } else { kwEl.scrollTop = top; paintKindWheel(); lockKind(i, true); }
   }
   function lockKind(i, quiet) {
     var k = WRITE_ORDER[i], K = KINDS[k], changed = k !== wKind;
@@ -571,7 +571,7 @@
     scrollKindTo(WRITE_ORDER.indexOf(b.getAttribute('data-k')), true);
   });
   kwEl.addEventListener('keydown', function (e) {
-    var step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    var step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step) { return; }
     e.preventDefault();
     var i = Math.max(0, Math.min(WRITE_ORDER.length - 1, WRITE_ORDER.indexOf(wKind) + step));
@@ -852,7 +852,7 @@
         if (!hold) { return; }
         var h = hold; hold = null;
         try { if (navigator.vibrate) { navigator.vibrate(12); } } catch (err) {}
-        openEdit(h.el.getAttribute('data-t'), h.el.getAttribute('data-id'));
+        openEdit(h.el.getAttribute('data-t'), h.el.getAttribute('data-id'), h.el);
         setTimeout(function () { h.el.classList.remove('holding'); }, 250);
       }, 520);
     });
@@ -862,32 +862,43 @@
     tlEl.addEventListener('contextmenu', function (e) { if (e.target.closest('.tl-item[data-id]')) { e.preventDefault(); } });
     tlEl.addEventListener('keydown', function (e) {
       var el = e.target.closest && e.target.closest('.tl-item[data-id]');
-      if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEdit(el.getAttribute('data-t'), el.getAttribute('data-id')); }
+      if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEdit(el.getAttribute('data-t'), el.getAttribute('data-id'), el); }
     });
   }
   watchHolds($('g-tl'), $('g-scroll'));
   watchHolds($('m-tl'), $('m-scroll'));
   function paintEditKinds() {
     $('edit-kinds').innerHTML = KIND_ORDER.map(function (k) {
-      return '<button type="button" class="chip" role="radio" style="--c:' + KINDS[k].color + '" data-k="' + k + '" aria-checked="' + (editKind === k) + '" aria-pressed="' + (editKind === k) + '"><i></i>' + KINDS[k].label + '</button>';
+      return '<button type="button" class="edit-dot" role="radio" style="--k:' + KINDS[k].color + '" data-k="' + k + '" aria-label="' + KINDS[k].label + '" aria-checked="' + (editKind === k) + '"><span></span></button>';
     }).join('');
     var isG = editing && editing.table === 'moments', c = isG ? KINDS.gratitude.color : KINDS[editKind || 'others'].color;
     $('sheet-edit').style.setProperty('--c', c);
     var b = $('edit-when').querySelector('b');
     if (b) { b.textContent = isG ? 'Gratitude' : KINDS[editKind || 'others'].label; }
   }
-  function openEdit(table, id) {
+  function fitEditText() { var t = $('edit-text'); t.style.height = 'auto'; t.style.height = Math.min(168, Math.max(64, t.scrollHeight)) + 'px'; }
+  $('edit-text').addEventListener('input', fitEditText);
+  function openEdit(table, id, anchor) {
     var m = findEntry(table, id);
     if (!m || m.deleted_at) { return; }
     editing = { table: table, id: id };
     var isMind = table === 'mind_entries', d = new Date(m.at);
     editKind = isMind ? m.kind : null;
-    $('edit-title').textContent = isMind ? 'Edit entry' : 'Edit moment';
-    $('edit-when').innerHTML = '<b>' + esc(isMind ? (KINDS[m.kind] || KINDS.others).label : 'Gratitude') + '</b> · ' + esc(WEEKDAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + timeLabel(d));
+    $('edit-when').innerHTML = '<b>' + esc(isMind ? (KINDS[m.kind] || KINDS.others).label : 'Gratitude') + '</b> · ' + esc(WEEKDAYS[d.getDay()].slice(0, 3) + ', ' + MONTHS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + timeLabel(d));
     $('edit-kinds').hidden = !isMind;
     $('edit-text').value = m.text;
     paintEditKinds();
+    // float the bubble up from the entry you held, kept high enough to clear the keyboard
+    var bub = $('edit-bubble'), ar = app.getBoundingClientRect(), top = 96, ox = 40;
+    if (anchor) {
+      var r = anchor.getBoundingClientRect();
+      top = Math.round(Math.max(64, Math.min(r.top - ar.top - 8, ar.height * 0.34)));
+      ox = Math.round((parseFloat(anchor.style.getPropertyValue('--x')) || 36) - 14);
+    }
+    bub.style.top = top + 'px';
+    bub.style.transformOrigin = ox + 'px 20px';
     openSheet('sheet-edit');
+    fitEditText();
   }
   $('edit-kinds').addEventListener('click', function (e) {
     var b = e.target.closest('[data-k]');
@@ -944,17 +955,17 @@
   if (MIN_OPTS.indexOf(med.mins) < 0) { med.mins = 10; }
   function saveMed() { try { localStorage.setItem('still2-meditate', JSON.stringify({ mins: med.mins, sound: med.sound, bell: med.bell, vol: med.vol })); } catch (e) {} }
 
-  // the minute wheel: swipe sideways, the middle number is the one you get
-  var wheel = $('d-wheel'), ITEM = 64, wheelIdx = MIN_OPTS.indexOf(med.mins), wheelSettle = null, wheelTick = false;
+  // the minute wheel sits inside the circle: swipe up or down, the middle number is the one you get
+  var wheel = $('d-wheel'), ITEM = 56, wheelIdx = MIN_OPTS.indexOf(med.mins), wheelSettle = null, wheelTick = false;
   wheel.innerHTML = '<div class="wheel-row">' + MIN_OPTS.map(function (m, i) { return '<button type="button" class="wheel-item" data-i="' + i + '" aria-label="' + plural(m, 'minute') + '" aria-pressed="false" tabindex="-1">' + m + '</button>'; }).join('') + '</div>';
   var wheelItems = wheel.querySelectorAll('.wheel-item');
   function paintWheel() {
-    var c = wheel.scrollLeft / ITEM;
-    var lo = Math.max(0, Math.floor(c) - 4), hi = Math.min(wheelItems.length - 1, Math.ceil(c) + 4);
+    var c = wheel.scrollTop / ITEM;
+    var lo = Math.max(0, Math.floor(c) - 3), hi = Math.min(wheelItems.length - 1, Math.ceil(c) + 3);
     for (var i = lo; i <= hi; i++) {
-      var d = Math.min(3, Math.abs(i - c));
-      wheelItems[i].style.transform = 'scale(' + (1.5 - d * 0.22).toFixed(3) + ')';
-      wheelItems[i].style.opacity = (1 - d * 0.3).toFixed(3);
+      var d = Math.min(1.6, Math.abs(i - c));
+      wheelItems[i].style.transform = 'scale(' + (1 - d * 0.36).toFixed(3) + ')';
+      wheelItems[i].style.opacity = Math.max(0.12, 1 - d * 0.62).toFixed(3);
     }
   }
   function setWheelIdx(i, quiet) {
@@ -966,13 +977,13 @@
     if (!med.running) { $('d-clock').textContent = med.mins + ':00'; if (!quiet) { $('d-sub').textContent = med.mins === 1 ? 'minute' : 'minutes'; } }
   }
   function scrollWheelTo(i, smooth) {
-    var left = i * ITEM;
-    if (smooth && !reduceMotion && wheel.scrollTo) { wheel.scrollTo({ left: left, behavior: 'smooth' }); } else { wheel.scrollLeft = left; paintWheel(); }
+    var top = i * ITEM;
+    if (smooth && !reduceMotion && wheel.scrollTo) { wheel.scrollTo({ top: top, behavior: 'smooth' }); } else { wheel.scrollTop = top; paintWheel(); }
   }
   wheel.addEventListener('scroll', function () {
     if (!wheelTick) { wheelTick = true; requestAnimationFrame(function () { wheelTick = false; paintWheel(); }); }
     clearTimeout(wheelSettle);
-    wheelSettle = setTimeout(function () { setWheelIdx(Math.round(wheel.scrollLeft / ITEM)); }, 110);
+    wheelSettle = setTimeout(function () { setWheelIdx(Math.round(wheel.scrollTop / ITEM)); }, 110);
   }, { passive: true });
   wheel.addEventListener('click', function (e) {
     var b = e.target.closest('.wheel-item');
@@ -980,7 +991,7 @@
     var i = +b.getAttribute('data-i'); setWheelIdx(i); scrollWheelTo(i, true);
   });
   wheel.addEventListener('keydown', function (e) {
-    var step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    var step = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
     if (!step || med.running) { return; }
     e.preventDefault();
     setWheelIdx(wheelIdx + step); scrollWheelTo(wheelIdx, true);
