@@ -62,6 +62,7 @@ Good = today's gratitude moments + "Thinking of others". Hard = angry + afraid +
 - Touch targets at least 48px. Respect reduced motion.
 - Escape user text before putting it in HTML (`esc()`).
 - Test at phone size (390×844) in a headless browser before pushing; there should be no console errors.
+- Test every database change as a signed-in person, not as the admin: in a `do` block, `set_config('request.jwt.claims', ...)` and `set local role authenticated`, then end with `raise exception` so nothing is kept. Triggers run as the signed-in person, so they must not call anything in `still_private` (that schema is closed to them).
 
 ## Not built yet
 
