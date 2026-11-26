@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var VERSION = 7; // keep in step with sw.js and the ?v= in index.html
+  var VERSION = 8; // keep in step with sw.js and the ?v= in index.html
   var SUPA = { url: 'https://icovzdxbbvbdbhcvdbrv.supabase.co', key: 'sb_publishable_rGazt0U4ycF564bSIBcBew_gO9RfORw' };
   var $ = function (id) { return document.getElementById(id); };
   var app = $('app');
@@ -162,7 +162,8 @@
   function errText(err) {
     var code = (err && (err.code || err.error_code)) || '';
     var m = String((err && (err.message || err.error_description || err.msg)) || err || '');
-    if (code === 'email_address_not_authorized' || /not authorized/i.test(m)) { return 'For now, sign-in emails only go to the address on your Supabase account. Use that one.'; }
+    if (code === 'email_address_not_authorized' || /not authorized/i.test(m)) { return "This address can't get sign-in emails yet, because Still's email setup isn't finished."; }
+    if (/non-2xx|FunctionsHttpError|FunctionsFetchError|FunctionsRelayError/i.test(m) || /^Functions/.test(String(err && err.name || ''))) { return 'The reminder service had a problem. Try again in a minute.'; }
     if (code === 'over_email_send_rate_limit' || /rate limit/i.test(m)) { return 'Too many emails in the last hour. Try again a little later.'; }
     if (code === 'otp_expired' || /expired|invalid|token/i.test(m)) { return 'That link or code has expired. Send yourself a new one.'; }
     if (navigator.onLine === false || /fetch|network|load failed/i.test(m)) { return 'No connection right now. Your entries are safe on this phone.'; }
@@ -242,6 +243,7 @@
   function setUser(u) {
     var was = SYNC.user ? SYNC.user.id : null;
     SYNC.user = u || null;
+    if (was !== (SYNC.user ? SYNC.user.id : null)) { setTimeout(remUserChanged, 0); }
     if (!SYNC.user) { SYNC.state = 'off'; paintCloud(); paintAccount(); return; }
     if (SYNC.state === 'off') { SYNC.state = 'busy'; }
     paintCloud(); paintAccount();
@@ -291,8 +293,10 @@
       pendingEmail = email;
       try { localStorage.setItem('still-auth-email', email); } catch (e) {}
       $('a-codebox').hidden = false;
-      SYNC.msg = 'Check your email and tap the link. It opens Still and signs you in.';
+      $('a-send').textContent = 'Send a new code'; $('a-send').classList.add('tonal');
+      SYNC.msg = 'We emailed a 6-digit code to ' + email + '. It can take a minute to arrive.';
       paintAccount();
+      setTimeout(function () { try { $('a-code').focus({ preventScroll: true }); } catch (e) {} }, 60);
     }).catch(function (err) { $('a-send').disabled = false; SYNC.msg = errText(err); paintAccount(); });
   }
   function verifyCode() {
@@ -317,7 +321,24 @@
     $('a-send').addEventListener('click', sendLink);
     $('a-verify').addEventListener('click', verifyCode);
     $('a-sync').addEventListener('click', function () { syncNow(); });
-    $('a-signout').addEventListener('click', function () { sb.auth.signOut().then(function () { SYNC.msg = 'Signed out. Your entries stay on this phone.'; setUser(null); }); });
+    $('a-signout').addEventListener('click', function () {
+      // This phone stops getting the account's reminders before it signs out.
+      dropPushSub().then(function () { return sb.auth.signOut(); }).then(function () {
+        SYNC.msg = 'Signed out. Your entries stay on this phone.';
+        $('a-codebox').hidden = true; $('a-code').value = '';
+        $('a-send').textContent = 'Email me a sign-in code'; $('a-send').classList.remove('tonal');
+        setUser(null);
+      });
+    });
+    var codeTimer = null;
+    $('a-code').addEventListener('input', function () {
+      clearTimeout(codeTimer);
+      if (String($('a-code').value).replace(/\D/g, '').length === 6) {
+        codeTimer = setTimeout(function () { if (String($('a-code').value).replace(/\D/g, '').length === 6 && !$('a-verify').disabled) { verifyCode(); } }, 450);
+      }
+    });
+    $('a-code').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); verifyCode(); } });
+    $('a-email').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sendLink(); } });
     sb.auth.onAuthStateChange(function (event, session) { setUser(session ? session.user : null); });
     if (AUTH_HASH) {
       var hp = {};
@@ -335,6 +356,244 @@
     }
   }
   if (pendingEmail) { $('a-email').value = pendingEmail; }
+
+  /* ---------- reminders: notifications a few times a day ---------- */
+  // The phone signs up for Web Push; Supabase keeps the times (reminder_settings) and a minute job sends them (supabase/functions/push).
+  var VAPID_PUBLIC = 'BLOeMXcLEJgEHxwCx_u-5PRLmJaXBSTZh6cdIhcrkej6BoH4Bh6khjAmDuecV50FqZrPGSRSbCaGsAKlTgYSiFs';
+  var DEFAULT_TIMES = ['09:00', '13:00', '20:30'];
+  var REM_KEY = 'still2-reminders';
+  var REM = { row: null, user: null, busy: false, msg: '', fresh: null };
+  var remPainted = '', remChain = Promise.resolve();
+  try { var remCache = JSON.parse(localStorage.getItem(REM_KEY) || 'null'); if (remCache && remCache.user) { REM.user = remCache.user; REM.row = remCache.row || null; } } catch (e) {}
+  var BLOCKED_HELP = 'Notifications are blocked for Still. To fix it, long-press the Still icon, tap App info, then Notifications, and turn them on.';
+  function pushOK() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  function perm() { try { return window.Notification ? Notification.permission : 'unsupported'; } catch (e) { return 'unsupported'; } }
+  function myTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } }
+  function hm(t) { return String(t || '').slice(0, 5); }
+  function toMin(t) { var p = hm(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
+  function fromMin(m) { return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
+  function myRow() { return SYNC.user && REM.user === SYNC.user.id ? REM.row : null; }
+  function curTimes() { var r = myRow(); return r ? (r.times || []).map(hm) : DEFAULT_TIMES.slice(); }
+  function remOn() { var r = myRow(); return !!(r && r.enabled && perm() === 'granted'); }
+  function remTimeLabel(t) { var d = new Date(2000, 0, 1, Math.floor(toMin(t) / 60), toMin(t) % 60); try { return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return hm(t); } }
+  function nextLabel(iso) {
+    var d = new Date(iso); if (!iso || isNaN(d.getTime())) { return ''; }
+    var diff = Math.round((startOfDay(d) - startOfDay(new Date())) / 86400000);
+    return (diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : 'on ' + WEEKDAYS[d.getDay()]) + ' at ' + remTimeLabel(pad(d.getHours()) + ':' + pad(d.getMinutes()));
+  }
+  function sentence(x) { return /[.!?]$/.test(x) ? x : x + '.'; }
+  function keepRem() { try { localStorage.setItem(REM_KEY, JSON.stringify({ user: REM.user, row: REM.row })); } catch (e) {} }
+  function b64u(str) {
+    var b = String(str).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) { b += '='; }
+    var raw = atob(b), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
+    return out;
+  }
+  function sameKey(sub) {
+    try {
+      var k = sub.options && sub.options.applicationServerKey; if (!k) { return false; }
+      var a = new Uint8Array(k), b = b64u(VAPID_PUBLIC); if (a.length !== b.length) { return false; }
+      for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) { return false; } }
+      return true;
+    } catch (e) { return false; }
+  }
+  function swReady() {
+    return Promise.race([navigator.serviceWorker.ready, new Promise(function (_, reject) { setTimeout(function () { reject(new Error('Still is still starting up. Try again in a moment.')); }, 8000); })]);
+  }
+  // Sign this phone up for notifications (or reuse its sign-up) and tell Supabase where to send them.
+  function savePushSub() {
+    return swReady().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub && sameKey(sub)) { return sub; }
+        return (sub ? sub.unsubscribe().catch(function () {}) : Promise.resolve()).then(function () {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) });
+        });
+      });
+    }).then(function (sub) {
+      var j = sub.toJSON();
+      return sb.rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_user_agent: navigator.userAgent }).then(function (res) {
+        if (res.error) { throw res.error; }
+        return sub;
+      });
+    });
+  }
+  function dropPushSub() {
+    if (!pushOK() || !sb || !SYNC.user) { return Promise.resolve(); }
+    return swReady().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      if (!sub) { return; }
+      return sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint).then(function () { return sub.unsubscribe(); });
+    }).catch(function () {});
+  }
+  function loadRem() {
+    if (!sb || !SYNC.user) { return Promise.resolve(null); }
+    var id = SYNC.user.id;
+    return sb.from('reminder_settings').select('enabled,times,tz,next_at').maybeSingle().then(function (res) {
+      if (res.error) { throw res.error; }
+      if (!SYNC.user || SYNC.user.id !== id) { return null; }
+      REM.user = id; REM.row = res.data || null; keepRem(); paintRem();
+      return REM.row;
+    });
+  }
+  // Saves the whole setting each time (enabled, times, time zone); the database works out the next reminder.
+  function saveRem(patch) {
+    var id = SYNC.user.id, base = myRow() || { enabled: false, times: [] };
+    var row = { user_id: id, enabled: patch.enabled != null ? patch.enabled : !!base.enabled, times: patch.times || (base.times || []).map(hm), tz: myTz() };
+    var run = function () {
+      return sb.from('reminder_settings').upsert(row, { onConflict: 'user_id' }).select('enabled,times,tz,next_at').single().then(function (res) {
+        if (res.error) { throw res.error; }
+        if (SYNC.user && SYNC.user.id === id) { REM.user = id; REM.row = res.data; keepRem(); }
+        return res.data;
+      });
+    };
+    var p = remChain.then(run, run);
+    remChain = p.catch(function () {});
+    return p;
+  }
+  function paintBell() {
+    var on = remOn();
+    $('w-bell').classList.toggle('on', on);
+    $('w-bell').setAttribute('aria-label', on ? 'Reminders are on' : 'Reminders');
+  }
+  function paintTimes(times) {
+    var key = times.join(',');
+    if (key === remPainted) { return; }
+    remPainted = key;
+    $('r-times').innerHTML = times.length ? times.map(function (t, i) {
+      return '<div class="rem-time' + (REM.fresh === t ? ' fresh' : '') + '" role="listitem"><span class="rem-label" aria-hidden="true">' + esc(remTimeLabel(t)) + '</span><input type="time" value="' + esc(t) + '" data-i="' + i + '" aria-label="Reminder at ' + esc(remTimeLabel(t)) + '. Tap to change."><button type="button" class="icon-btn" data-rm="' + i + '" aria-label="Remove the ' + esc(remTimeLabel(t)) + ' reminder"><span class="msr">' + iconSvg('close') + '</span></button></div>';
+    }).join('') : '<p class="rem-empty">No times yet. Add one below.</p>';
+    REM.fresh = null;
+  }
+  function paintRem() {
+    paintBell();
+    var signed = !!(sb && SYNC.user), ok = pushOK(), p = perm(), row = myRow(), on = remOn();
+    var times = signed ? curTimes() : DEFAULT_TIMES.slice();
+    var t = $('r-toggle');
+    t.setAttribute('aria-checked', on ? 'true' : 'false');
+    t.classList.toggle('busy', REM.busy);
+    t.disabled = !sb;
+    var sub;
+    if (!sb) { sub = 'Reminders are not available right now.'; }
+    else if (!signed) { sub = "Reminders come from Still's server, so you need to be signed in."; }
+    else if (!ok) { sub = "This browser can't show notifications. Open Still from your home screen."; }
+    else if (p === 'denied') { sub = 'Notifications are blocked for Still on this phone.'; }
+    else if (REM.busy) { sub = on ? 'Turning off…' : 'Turning on…'; }
+    else if (on) { sub = !times.length ? 'Add a time to get reminders.' : row && row.next_at ? sentence('The next one is ' + nextLabel(row.next_at)) : 'On.'; }
+    else { sub = 'A gentle nudge a few times a day.'; }
+    $('r-sub').textContent = sub;
+    $('r-signin').hidden = signed || !sb;
+    $('r-block').hidden = !signed;
+    $('r-block').classList.toggle('off', !on);
+    $('r-note').hidden = !signed;
+    $('r-test').hidden = !on;
+    $('r-add').hidden = times.length >= 12;
+    if (signed) { paintTimes(times); } else { remPainted = ''; }
+    $('r-msg').textContent = REM.msg || (signed && p === 'denied' ? BLOCKED_HELP : '');
+  }
+  function setTimes(times) {
+    var seen = {}, clean = [];
+    times.map(hm).filter(function (t) { return /^\d\d:\d\d$/.test(t); }).sort().forEach(function (t) { if (!seen[t]) { seen[t] = 1; clean.push(t); } });
+    var prevRow = REM.row, prevUser = REM.user, base = myRow();
+    REM.user = SYNC.user.id;
+    REM.row = Object.assign({ enabled: false, tz: myTz(), next_at: null }, base || {}, { times: clean });
+    REM.msg = '';
+    paintRem();
+    return saveRem({ times: clean }).then(function () { paintRem(); }).catch(function (err) {
+      REM.row = prevRow; REM.user = prevUser; remPainted = ''; REM.msg = errText(err); paintRem();
+    });
+  }
+  function suggestTime(times) {
+    var mins = times.map(toMin);
+    var picks = [12, 15, 18, 10, 21, 8, 16, 19, 11, 14, 17, 20, 22, 7].map(function (h) { return h * 60; });
+    for (var i = 0; i < picks.length; i++) {
+      var far = mins.every(function (m) { return Math.abs(m - picks[i]) >= 60; });
+      if (far) { return fromMin(picks[i]); }
+    }
+    for (var j = 0; j < picks.length; j++) { if (mins.indexOf(picks[j]) < 0) { return fromMin(picks[j]); } }
+    return '12:30';
+  }
+  function remUserChanged() {
+    remPainted = ''; REM.msg = '';
+    if (!SYNC.user) { paintRem(); return; }
+    if (REM.user && REM.user !== SYNC.user.id) { REM.row = null; REM.user = null; keepRem(); }
+    paintRem();
+    loadRem().then(function (row) {
+      // Each time the app opens signed in: keep this phone's sign-up fresh and follow the phone's time zone.
+      if (row && row.enabled && perm() === 'granted' && pushOK()) {
+        savePushSub().catch(function () {});
+        if (row.tz !== myTz()) { saveRem({}).then(paintRem).catch(function () {}); }
+      }
+    }).catch(function () { paintRem(); });
+  }
+  $('w-bell').addEventListener('click', function () {
+    REM.msg = ''; remPainted = '';
+    paintRem();
+    openSheet('sheet-remind');
+    if (SYNC.user) { loadRem().catch(function () {}); }
+  });
+  $('r-signin').addEventListener('click', function () {
+    closeSheet('sheet-remind');
+    setTimeout(function () { paintAccount(); openSheet('sheet-account', 'a-email'); }, 360);
+  });
+  $('r-toggle').addEventListener('click', function () {
+    if (REM.busy || !sb) { return; }
+    if (!SYNC.user) { REM.msg = 'Sign in first, then turn reminders on.'; paintRem(); return; }
+    if (remOn()) {
+      REM.busy = true; REM.msg = ''; paintRem();
+      saveRem({ enabled: false }).then(function () { REM.busy = false; paintRem(); toast('Reminders are off.'); })
+        .catch(function (err) { REM.busy = false; REM.msg = errText(err); paintRem(); });
+      return;
+    }
+    if (!pushOK()) { REM.msg = "This browser can't show notifications. Open Still from your home screen in Chrome."; paintRem(); return; }
+    if (perm() === 'denied') { REM.msg = BLOCKED_HELP; paintRem(); return; }
+    REM.busy = true; REM.msg = ''; paintRem();
+    var ask = perm() === 'granted' ? Promise.resolve('granted') : Promise.resolve(Notification.requestPermission());
+    ask.then(function (answer) {
+      if (answer !== 'granted') { var e = new Error(answer); e.still = answer; throw e; }
+      return savePushSub();
+    }).then(function () {
+      var times = curTimes();
+      return saveRem({ enabled: true, times: times.length ? times : DEFAULT_TIMES.slice() });
+    }).then(function (row) {
+      REM.busy = false; remPainted = ''; paintRem();
+      toast(row && row.next_at ? sentence('Reminders are on. The next one is ' + nextLabel(row.next_at)) : 'Reminders are on.');
+    }).catch(function (err) {
+      REM.busy = false;
+      REM.msg = err && err.still === 'denied' ? BLOCKED_HELP : err && err.still ? 'Still needs your permission to send notifications. Tap the switch again and choose Allow.' : errText(err);
+      paintRem();
+    });
+  });
+  $('r-times').addEventListener('click', function (e) {
+    if (!SYNC.user) { return; }
+    var rm = e.target.closest('[data-rm]');
+    if (rm) { var times = curTimes(); times.splice(+rm.getAttribute('data-rm'), 1); setTimes(times); return; }
+    var inp = e.target.closest('input[type="time"]');
+    if (inp && inp.showPicker) { try { inp.showPicker(); } catch (err) {} }
+  });
+  $('r-times').addEventListener('change', function (e) {
+    var inp = e.target.closest('input[type="time"]');
+    if (!inp || !SYNC.user) { return; }
+    if (!inp.value) { remPainted = ''; paintRem(); return; }
+    var times = curTimes(); times[+inp.getAttribute('data-i')] = inp.value;
+    setTimes(times);
+  });
+  $('r-add').addEventListener('click', function () {
+    if (!SYNC.user) { return; }
+    var times = curTimes(), t = suggestTime(times);
+    REM.fresh = t;
+    setTimes(times.concat([t]));
+    var inp = $('r-times').querySelector('input[value="' + t + '"]');
+    if (inp) { try { inp.focus({ preventScroll: true }); if (inp.showPicker) { inp.showPicker(); } } catch (err) {} }
+  });
+  $('r-test').addEventListener('click', function () {
+    if (!SYNC.user) { return; }
+    $('r-test').disabled = true; REM.msg = 'Sending…'; paintRem();
+    savePushSub().then(function () { return sb.functions.invoke('push', { body: { mode: 'test' } }); }).then(function (res) {
+      if (res.error) { throw res.error; }
+      var d = res.data || {};
+      REM.msg = d.sent ? 'Sent. It should arrive in a few seconds.' : d.phones ? "It didn't go through. Turn reminders off and on again, then try again." : 'This phone is not signed up yet. Turn reminders off and on again.';
+    }).catch(function (err) { REM.msg = errText(err); }).then(function () { $('r-test').disabled = false; paintRem(); });
+  });
+  paintBell();
 
   /* ---------- layers: sheets and the eclipse close with the phone's back gesture ---------- */
   var layers = [];
@@ -1388,6 +1647,16 @@
   show('write');
   requestAnimationFrame(frame);
   if (document.fonts && document.fonts.ready) { document.fonts.ready.then(function () { layout(); if (current === 'gratitude') { gTL.measure(); } if (current === 'mind') { mTL.measure(); } }); }
+  // Opened from a reminder: go to Write (unless something is open mid-edit).
+  function fromReminder() {
+    if (document.querySelector('.sheet.open')) { return; }
+    if (navOpen) { closeNav(); }
+    if (current !== 'write') { show('write'); }
+  }
+  if (/[?&]from=reminder/.test(location.search)) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'still-reminder') { fromReminder(); } });
+  }
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }

@@ -1,8 +1,8 @@
 // Still 2: keeps the app working offline. Your entries live in the phone's storage and in Supabase, not in this cache.
-const CACHE = 'still2-v7';
-const V = '?v=7';
+const CACHE = 'still2-v8';
+const V = '?v=8';
 // The page asks for every script and style with the version on the end, so a phone can never mix old and new files.
-const CORE = ['./', './index.html', './app.css' + V, './app.js' + V, './icons.js' + V, './eclipse.js' + V, './vendor/supabase.js' + V, './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CORE = ['./', './index.html', './app.css' + V, './app.js' + V, './icons.js' + V, './eclipse.js' + V, './vendor/supabase.js' + V, './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './badge-96.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -38,4 +38,34 @@ self.addEventListener('fetch', (event) => {
       return res;
     }).catch(() => caches.match(req.mode === 'navigate' ? './index.html' : req).then((hit) => hit || caches.match('./index.html')))
   );
+});
+
+// Reminders: Supabase sends a Web Push message; show it as a notification.
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data ? event.data.text() : '' }; }
+  const title = d.title || 'Still';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: d.body || 'What are you grateful for right now?',
+    icon: './icon-192.png',
+    badge: './badge-96.png',
+    tag: d.tag || 'still-reminder',
+    renotify: true,
+    data: { url: d.url || './' },
+  }));
+});
+
+// Tapping a reminder opens Still on Write (or brings the open app to the front).
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
+        c.postMessage({ type: 'still-reminder' });
+        return c.focus();
+      }
+    }
+    return self.clients.openWindow(target);
+  }));
 });

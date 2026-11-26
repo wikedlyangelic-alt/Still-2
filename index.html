@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&family=Roboto+Flex:opsz,wght@8..144,400..600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=7">
+<link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
 <div id="app">
@@ -27,6 +27,7 @@
           <p class="date" id="w-date"></p>
           <p class="clock" id="w-clock"></p>
         </div>
+        <button type="button" class="icon-btn bell-btn" id="w-bell" aria-label="Reminders"><span class="msr">notifications</span></button>
         <button type="button" class="icon-btn cloud-btn" id="w-cloud" aria-label="Back up your moments"><span class="msr" id="w-cloud-icon">cloud_off</span></button>
       </header>
       <div class="write">
@@ -210,11 +211,11 @@
       <p class="muted" id="a-status"></p>
       <div id="a-out">
         <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email" inputmode="email" placeholder="you@example.com"></label>
-        <button type="button" class="pill-btn wide" id="a-send">Email me a sign-in link</button>
         <div id="a-codebox" hidden>
-          <label class="field"><span>Or enter the code from the email</span><input type="text" id="a-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"></label>
-          <button type="button" class="pill-btn wide tonal" id="a-verify">Sign in with the code</button>
+          <label class="field"><span>The 6-digit code from the email</span><input type="text" id="a-code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="000000"></label>
+          <button type="button" class="pill-btn wide" id="a-verify">Sign in</button>
         </div>
+        <button type="button" class="pill-btn wide" id="a-send">Email me a sign-in code</button>
       </div>
       <div id="a-in" hidden>
         <button type="button" class="pill-btn wide" id="a-sync">Back up now</button>
@@ -225,11 +226,31 @@
     </div>
   </div>
 
+  <div class="sheet" id="sheet-remind" aria-hidden="true">
+    <div class="scrim" data-close></div>
+    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="rem-title">
+      <div class="sheet-head"><h2 id="rem-title">Reminders</h2><button type="button" class="icon-btn" data-close aria-label="Close"><span class="msr">close</span></button></div>
+      <button type="button" class="switch-row" id="r-toggle" role="switch" aria-checked="false" aria-describedby="r-sub">
+        <span class="switch-text"><span class="switch-label">Remind me to pause</span><span class="switch-sub" id="r-sub">A gentle nudge a few times a day.</span></span>
+        <span class="switch" aria-hidden="true"><span class="switch-thumb"></span></span>
+      </button>
+      <div class="rem-block" id="r-block">
+        <p class="field-label" id="r-times-label">Times</p>
+        <div class="rem-times" id="r-times" role="list" aria-labelledby="r-times-label"></div>
+        <button type="button" class="text-btn add-time" id="r-add"><span class="msr">add</span>Add a time</button>
+      </div>
+      <p class="muted small" id="r-note">If you wrote something in the 20 minutes before a reminder, Still skips that one.</p>
+      <button type="button" class="pill-btn wide tonal" id="r-signin" hidden>Sign in first</button>
+      <button type="button" class="text-btn" id="r-test" hidden>Send me a test</button>
+      <p class="msg" id="r-msg" role="status"></p>
+    </div>
+  </div>
+
   <div id="toast" role="status" aria-live="polite"></div>
 </div>
-<script src="icons.js?v=7"></script>
-<script src="eclipse.js?v=7"></script>
-<script src="vendor/supabase.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="icons.js?v=8"></script>
+<script src="eclipse.js?v=8"></script>
+<script src="vendor/supabase.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

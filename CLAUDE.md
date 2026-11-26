@@ -10,6 +10,8 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - `vendor/supabase.js` is the UMD build of `@supabase/supabase-js` 2.119.2, checked in so the app works offline.
 - `icons.js` holds Material Symbols (Rounded, filled) as inline SVG paths, so icons never depend on a network font.
 - `eclipse.js` draws the eclipse as two SVGs (`STILL_ECLIPSE.small()` for the corner, `.big()` for the open eclipse). Warm light only: the big corona is fine filaments and a few softened streamers that fade outward through one radial gradient, plus a tight inner glow; strands flicker gently with CSS (`.fl`). The sun, its rays and the thin red edge sit in `.e-rot` groups that `frame()` turns.
+- `supabase/functions/push/index.ts` is the source of the `push` Edge Function (reminders). It is deployed with the Supabase tools, not by GitHub Pages; redeploy it after changing it (verify_jwt off, because it checks its own secret or the person's sign-in).
+- `badge-96.png` is the small white eclipse Android shows in the status bar for a reminder.
 - Fonts: Newsreader (headings, entries) and Roboto Flex (everything else) from Google Fonts, cached by the service worker.
 - **Every deploy: bump the version in three places together**: `VERSION` in `app.js`, `CACHE` and `V` in `sw.js`, and the `?v=` on every script and style in `index.html`. The version shows at the bottom of the backup sheet (cloud icon). The service worker always revalidates with the network (`cache: 'no-cache'`), and the versioned URLs mean a phone can never run a new page with old code (GitHub Pages lets browsers keep files for 10 minutes).
 
@@ -35,8 +37,19 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
   - `public.mind_entries`: Master your Mind entries, Still 2 only. Columns: id, user_id, kind ('others' | 'angry' | 'afraid' | 'selfish' | 'resentful'), text, at, updated_at, deleted_at, server_updated_at.
   - Row-level security on both: people only ever see their own rows.
   - `server_updated_at` is set by the `touch_server_updated_at()` trigger and is the pull cursor.
+  - `public.push_subscriptions` (endpoint, user_id, p256dh, auth, user_agent, last_ok_at) and `public.reminder_settings`: see Reminders. Helper functions that the app must not call live in the `still_private` schema.
 - Sync: push every unsynced row (upsert on id), then pull everything with `server_updated_at >=` the cursor for each table. Runs after a save, on sign-in, when the connection comes back and when the app comes to the front.
-- Sign-in: Supabase email link (implicit flow, tokens arrive in the URL hash) or the 6-digit code if the email has one. The auth storage key is `still-auth`, the same as the first app, so a sign-in on one carries over to the other on this origin.
+- Sign-in: a 6-digit code by email (`signInWithOtp`, then `verifyOtp`; it signs in by itself once 6 digits are typed). The emails go through custom SMTP (Andrew's Gmail) with templates that show `{{ .Token }}`, so anyone can sign in, not only the Supabase team. The old email link (tokens in the URL hash) still works if an email has one. The auth storage key is `still-auth`, the same as the first app, so a sign-in on one carries over to the other on this origin.
+
+## Reminders
+
+- The bell at the top left of Write opens the Reminders sheet: a switch ("Remind me to pause"), the times (tap one to change it with the phone's time picker, x to remove, "Add a time"), and "Send me a test". Defaults when first turned on: 9:00 a.m., 1:00 p.m., 8:30 p.m. Up to 12 times. The bell turns lavender when reminders are on. Reminders need sign-in.
+- How it works: the phone signs up for Web Push with the VAPID public key in `app.js` and saves its address with `save_push_subscription()`. The times live in `public.reminder_settings` (one row per person: enabled, times, tz, next_at). A trigger works out `next_at` from the times and the phone's time zone (handles daylight saving). The pg_cron job `still-reminders` runs every minute; when someone is due it calls the `push` function, which claims due rows (`still_private.claim_due_reminders()`), sends the notification and removes phones that are gone (404/410).
+- It stays quiet if the reminder is more than 30 minutes late, or if the person wrote something in the 20 minutes before it.
+- The message depends on the time of day where the person is (morning, day, evening prompts in the function). Tapping it opens Write (`?from=reminder`, or a `still-reminder` message to an open app).
+- Every time the app opens signed in with reminders on, it re-saves the phone's push address and follows the phone's time zone. Signing out removes this phone's push address first.
+- Secrets live in Supabase Vault and never leave Supabase: `still_push_secret` (the job proves itself to the function with it), `still_vapid_private` and `still_vapid_public` (made by the function's `setup` mode). The function's `selftest` mode checks the encryption without sending anything.
+- The security advisor warns that signed-in people can run `save_push_subscription()`. That is on purpose: it is how a phone saves its own address, and it only ever writes the caller's own row and only accepts real push-service addresses.
 
 ## Balance (Master your Mind)
 
@@ -52,4 +65,4 @@ Good = today's gratitude moments + "Thinking of others". Hard = angry + afraid +
 
 ## Not built yet
 
-Affirmations recorded in your own voice, the Patterns counsellor (AI), push notifications and daily reminders, the guided journey, a first-time intro (including how the eclipse works).
+Affirmations recorded in your own voice, the Patterns counsellor (AI), the guided journey, a first-time intro (including how the eclipse works).
