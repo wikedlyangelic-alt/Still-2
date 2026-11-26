@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var VERSION = 8; // keep in step with sw.js and the ?v= in index.html
+  var VERSION = 9; // keep in step with sw.js and the ?v= in index.html
   var SUPA = { url: 'https://icovzdxbbvbdbhcvdbrv.supabase.co', key: 'sb_publishable_rGazt0U4ycF564bSIBcBew_gO9RfORw' };
   var $ = function (id) { return document.getElementById(id); };
   var app = $('app');
@@ -59,13 +59,22 @@
 
   /* ---------- your data, kept on this phone first ---------- */
   var KEY = 'still2-data-v1';
-  var DB = { v: 1, moments: [], mind: [], importedV1: false };
-  try {
-    var raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (raw && Array.isArray(raw.moments)) { DB = raw; if (!Array.isArray(DB.mind)) { DB.mind = []; } }
-  } catch (e) {}
+  // Demo mode (Andrew's account only) swaps in a separate sample journal kept under DEMO_KEY. Nothing syncs while it is on,
+  // and the real journal under KEY is left exactly as it was until demo mode is turned off.
+  var DEMO_KEY = 'still2-demo-data', DEMO_FLAG = 'still2-demo-on', DEMO_SEEN = 'still2-demo-unlocked';
+  var DEMO_OWNER = 'ef3b1167-e0df-42d5-8044-618c1b9ff8b6';
+  var DEMO = false, demoUnlocked = false;
+  function loadReal() {
+    var db = { v: 1, moments: [], mind: [], importedV1: false };
+    try {
+      var raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (raw && Array.isArray(raw.moments)) { db = raw; if (!Array.isArray(db.mind)) { db.mind = []; } }
+    } catch (e) {}
+    return db;
+  }
+  var DB = loadReal();
   function persist() {
-    try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+    try { localStorage.setItem(DEMO ? DEMO_KEY : KEY, JSON.stringify(DB)); }
     catch (e) { toast('Could not save on this phone. Is storage full?'); }
   }
   if (!DB.importedV1) {
@@ -83,6 +92,15 @@
     DB.importedV1 = true;
     persist();
   }
+  try {
+    demoUnlocked = localStorage.getItem(DEMO_SEEN) === '1';
+    if (localStorage.getItem(DEMO_FLAG) === '1') {
+      var demoDb = JSON.parse(localStorage.getItem(DEMO_KEY) || 'null');
+      DEMO = true;
+      DB = demoDb && Array.isArray(demoDb.moments) ? demoDb : makeDemo();
+      if (!Array.isArray(DB.mind)) { DB.mind = []; }
+    }
+  } catch (e) {}
   var askedPersist = false;
   function keepStorage() {
     if (askedPersist) { return; }
@@ -206,7 +224,7 @@
   }
   function setSync(state, msg) { SYNC.state = state; if (msg !== undefined) { SYNC.msg = msg; } paintCloud(); paintAccount(); }
   function syncNow() {
-    if (!sb || !SYNC.user) { return Promise.resolve(false); }
+    if (DEMO || !sb || !SYNC.user) { return Promise.resolve(false); }
     if (SYNC.busy) { SYNC.again = true; return Promise.resolve(false); }
     if (navigator.onLine === false) { setSync('error', 'No connection right now. Your entries are safe on this phone.'); return Promise.resolve(false); }
     SYNC.busy = true;
@@ -236,7 +254,7 @@
   }
   var syncTimer = null;
   function syncSoon(delay) {
-    if (!sb || !SYNC.user) { return; }
+    if (DEMO || !sb || !SYNC.user) { return; }
     clearTimeout(syncTimer);
     syncTimer = setTimeout(syncNow, delay || 600);
   }
@@ -281,7 +299,13 @@
     } else {
       $('a-status').textContent = sb ? 'Everything you write is saved on this phone. Sign in to keep a copy safe in the cloud and see it on other devices.' : 'Backup is not available right now. Everything is still saved on this phone.';
     }
+    $('a-sync').hidden = DEMO;
+    if (DEMO) {
+      $('acct-title').textContent = 'Backup paused';
+      $('a-status').textContent = 'Demo mode is on, so backup is paused. Your own entries are safe on this phone and come back when you turn it off.';
+    }
     $('a-msg').textContent = SYNC.msg || '';
+    paintDemo();
   }
   function sendLink() {
     var email = String($('a-email').value || '').trim().toLowerCase();
@@ -356,6 +380,99 @@
     }
   }
   if (pendingEmail) { $('a-email').value = pendingEmail; }
+
+  /* ---------- demo mode: two weeks of sample entries for showing Still to people ---------- */
+  // Seven quick taps on the version line in the backup sheet reveal the switch, on Andrew's account only.
+  function demoAllowed() { return DEMO || !!(SYNC.user && SYNC.user.id === DEMO_OWNER && demoUnlocked); }
+  function paintDemo() {
+    var row = $('a-demo'); if (!row) { return; }
+    row.hidden = !demoAllowed();
+    row.setAttribute('aria-checked', DEMO ? 'true' : 'false');
+    $('a-demo-sub').textContent = DEMO ? 'On. Anything written now is thrown away when you turn it off. Backup is paused.' : 'Two weeks of sample entries for showing Still to people. Your own entries are put away, not deleted.';
+    $('w-clock').classList.toggle('demo', DEMO);
+  }
+  function setDemo(on) {
+    if (on === DEMO) { return; }
+    if (SYNC.busy) { setTimeout(function () { setDemo(on); }, 600); return; }
+    clearTimeout(syncTimer);
+    if (on) {
+      persist();
+      DB = makeDemo(); DEMO = true;
+      try { localStorage.setItem(DEMO_FLAG, '1'); } catch (e) {}
+      persist();
+    } else {
+      DEMO = false;
+      try { localStorage.removeItem(DEMO_FLAG); localStorage.removeItem(DEMO_KEY); } catch (e) {}
+      DB = loadReal();
+    }
+    dirtyAll(); renderCurrent(); paintAccount();
+    toast(on ? 'Demo mode is on. Your own entries are put away safely.' : 'Demo mode is off. Your own entries are back.');
+    if (!on) { syncSoon(300); }
+  }
+  $('a-demo').addEventListener('click', function () { setDemo(!DEMO); });
+  var versionTaps = [];
+  $('a-version').addEventListener('click', function () {
+    if (demoUnlocked || DEMO) { return; }
+    var now = Date.now();
+    versionTaps = versionTaps.filter(function (t) { return now - t < 3000; });
+    versionTaps.push(now);
+    if (versionTaps.length < 7) { return; }
+    versionTaps = [];
+    if (!SYNC.user || SYNC.user.id !== DEMO_OWNER) { return; }
+    demoUnlocked = true;
+    try { localStorage.setItem(DEMO_SEEN, '1'); } catch (e) {}
+    paintDemo();
+    toast('Demo mode unlocked.');
+  });
+  paintDemo();
+
+  // Builds the sample journal fresh each time, ending at the current moment, so "today" always has entries.
+  function makeDemo() {
+    var G = ["The first sip of coffee before anyone else was awake.", "A friend remembered I had a big meeting today and texted to wish me luck.", "Fresh snow on the mountains on the drive in.", "My partner made dinner without being asked.", "Finished my run even though it was pouring rain.", "The barista remembered my order.", "Mom called just to hear how my week was going.", "A long hug at the end of a hard day.", "Clean sheets and an early night.", "The cat fell asleep on my feet and kept them warm.", "Got through my whole inbox before lunch for once.", "Leftover soup that tasted even better the second day.", "Someone let me merge in heavy traffic and waved.", "A colleague gave me credit in front of the whole team.", "Rain on the window while I read for an hour.", "Being able to buy groceries without worrying about the total.", "Ten quiet minutes in the car before heading inside.", "Slept a full eight hours.", "A good conversation with my dad about nothing in particular.", "A hot shower after a cold walk.", "Laughed so hard at dinner that I cried.", "The sky turned completely orange at sunset.", "A podcast that changed how I think about patience.", "Fresh bread from the bakery down the street.", "That my parents are healthy.", "My body feels strong after a good week of training.", "An old friend reached out after two years.", "The quiet of the house early on a Sunday.", "Our team hit its number this week.", "A stranger held the door and actually smiled.", "I finally fixed the leaky tap myself.", "A walk by the water at lunch.", "My sister sent a photo that made my whole morning.", "Having work that challenges me.", "A warm coat on a freezing morning.", "The dog next door who greets me every single day.", "A slow breakfast with nowhere to be.", "Someone thanked me for something I'd forgotten I did.", "The smell of the forest after the rain.", "Making it to the gym when I really didn't want to.", "A home-cooked meal that actually turned out well.", "Getting a window seat on the bus.", "A kind message from my manager.", "The playlist that got me through the afternoon.", "That I have people I can call when things are hard.", "Watching the city lights come on from the balcony.", "A book I can't put down.", "Taking a deep breath before replying to a hard email.", "My partner's laugh.", "Being healthy enough to go for a long walk.", "A surprise coffee from a coworker.", "Clear skies for the first time all week.", "Getting to bed before eleven.", "The neighbour who shovelled our steps.", "A text from an old teacher.", "My favourite song came on in the grocery store.", "Being patient in a moment where I usually wouldn't be.", "A full fridge.", "A movie night on the couch under a big blanket.", "A good stretch after sitting all day.", "The first clementines of the season.", "A lunch meeting that turned into a real conversation.", "Feeling calm for most of the day.", "A kid on the bus waving at everyone.", "Fresh air with the window open.", "Knowing tomorrow is a slow day."];
+    var OTHERS = ["Dropped off soup for my neighbour, who has been sick all week.", "Asked the new person on my team how they're settling in, and really listened.", "Sent my brother a message to say I'm proud of him.", "Let someone go ahead of me in line because they looked rushed.", "Called my grandma just to chat.", "Helped a friend move a couch on my day off.", "Left a good review for the small café down the street.", "Picked up groceries for my parents.", "Covered a coworker's shift so they could see their kid's game.", "Checked in on a friend who has been quiet lately.", "Donated the coats I don't wear anymore.", "Bought lunch for the person behind me.", "Listened to my partner vent without trying to fix anything.", "Gave a colleague the credit for an idea we worked on together.", "Held the elevator for someone carrying boxes.", "Shared what I've learned with a newer teammate.", "Texted my mom a photo from our walk.", "Thanked the bus driver on the way off."];
+    var HARD = {
+      afraid: ["Worried the presentation tomorrow won't land.", "Nervous about money after the car repair.", "Afraid I'm not growing fast enough at work.", "Anxious about a conversation I need to have with my landlord.", "Scared I'll let my team down this quarter."],
+      angry: ["Got cut off in traffic and stayed angry for twenty minutes.", "The meeting ran an hour over again, and I was short with everyone after.", "Snapped at my partner about the dishes.", "Lost my temper on a customer service call.", "Annoyed that my plans got cancelled at the last minute."],
+      selfish: ["Took the last of the leftovers without asking.", "Scrolled my phone while a friend was talking to me.", "Didn't offer to help clean up after dinner.", "Made the whole evening about my day.", "Skipped a call with a friend because I didn't feel like it."],
+      resentful: ["Still holding onto what was said at the family dinner.", "Resentful that I always end up planning everything.", "Bitter that someone else got the credit for my work.", "Still annoyed my friend never paid me back."]
+    };
+    var HARD_ORDER = ['afraid', 'angry', 'selfish', 'afraid', 'resentful', 'angry', 'selfish', 'resentful'];
+    // [gratitude, thinking of others, hard ones] per day, oldest first. Good wins most days, but not every day.
+    var PLAN = [[3, 1, 2], [4, 0, 1], [2, 1, 3], [5, 2, 1], [4, 1, 2], [6, 1, 1], [3, 0, 2], [5, 2, 1], [9, 1, 1], [4, 1, 2], [5, 2, 0], [6, 1, 1], [4, 2, 1], [3, 1, 1]];
+    var seed = 20261126;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var now = new Date(), db = { v: 1, moments: [], mind: [], importedV1: true, demo: true };
+    var gi = 0, oi = 0, hi = 0, hk = { afraid: 0, angry: 0, selfish: 0, resentful: 0 };
+    function times(dayStart, n, isToday) {
+      var out = [], i;
+      if (isToday) {
+        // Today: spread back from now, never before 6 a.m. or in the future.
+        var t = now.getTime() - (20 + rnd() * 40) * 60000;
+        for (i = 0; i < n && t > dayStart + 6 * 3600000; i++) { out.push(t); t -= (55 + rnd() * 80) * 60000; }
+        return out;
+      }
+      for (i = 0; i < n; i++) { out.push(dayStart + (7 * 60 + 5 + rnd() * (15 * 60 + 30)) * 60000 + Math.floor(rnd() * 60000)); }
+      return out.sort(function (a, b) { return a - b; });
+    }
+    for (var d = 0; d < PLAN.length; d++) {
+      var back = PLAN.length - 1 - d, isToday = back === 0;
+      var dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back).getTime();
+      var p = PLAN[d], total = p[0] + p[1] + p[2], ts = times(dayStart, total, isToday), kinds = [], j;
+      for (j = 0; j < p[0]; j++) { kinds.push('g'); }
+      for (j = 0; j < p[1]; j++) { kinds.push('others'); }
+      for (j = 0; j < p[2]; j++) { kinds.push(HARD_ORDER[hi++ % HARD_ORDER.length]); }
+      for (j = kinds.length - 1; j > 0; j--) { var r = Math.floor(rnd() * (j + 1)), tmp = kinds[j]; kinds[j] = kinds[r]; kinds[r] = tmp; }
+      for (j = 0; j < ts.length; j++) {
+        var at = new Date(ts[j]).toISOString(), k = kinds[j];
+        if (k === 'g') { db.moments.push({ id: uid(), text: G[gi++ % G.length], at: at, updated_at: at, source: rnd() < 0.35 ? 'voice' : 'typed', synced: true }); }
+        else if (k === 'others') { db.mind.push({ id: uid(), kind: 'others', text: OTHERS[oi++ % OTHERS.length], at: at, updated_at: at, synced: true }); }
+        else { db.mind.push({ id: uid(), kind: k, text: HARD[k][hk[k]++ % HARD[k].length], at: at, updated_at: at, synced: true }); }
+      }
+    }
+    db.moments.sort(function (a, b) { return ms(b.at) - ms(a.at); });
+    db.mind.sort(function (a, b) { return ms(b.at) - ms(a.at); });
+    return db;
+  }
 
   /* ---------- reminders: notifications a few times a day ---------- */
   // The phone signs up for Web Push; Supabase keeps the times (reminder_settings) and a minute job sends them (supabase/functions/push).
@@ -681,13 +798,20 @@
       this.litPath.setAttribute('d', nodes.length > 1 ? d : '');
     }
     this.first = nodes.length ? nodes[0].y : 0; this.last = nodes.length ? nodes[nodes.length - 1].y : 0;
+    this.start = this.first;
+    for (var k = 0; k < nodes.length; k++) { if (!nodes[k].day) { this.start = nodes[k].y; break; } }
     this.update();
   };
   Timeline.prototype.update = function () {
-    var top = this.scroll.scrollTop, litY = top + this.scroll.clientHeight * 0.42, label = '', nodes = this.nodes;
+    // The light starts on the first entry's star when the screen opens, then glides down to its resting place
+    // (42% down the screen) over the first stretch of scrolling. A list too short to scroll is lit all the way.
+    var top = this.scroll.scrollTop, H = this.scroll.clientHeight, nodes = this.nodes, label = '';
+    var cruise = H * 0.42, start = Math.min(cruise, this.start || this.first);
+    var ramp = Math.min(240, Math.max(0, this.scroll.scrollHeight - H) * 0.6), t = ramp < 1 ? 1 : Math.min(1, top / ramp);
+    var litY = top + start + (cruise - start) * t * t * (3 - 2 * t);
     var litLen = 0, hx = 36, hy = this.first;
     for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i], lit = n.y < litY, near = !n.day && lit && litY - n.y < 70;
+      var n = nodes[i], lit = n.y <= litY + 0.5, near = !n.day && lit && litY - n.y < 70;
       if (lit !== n.lit) { n.el.classList.toggle('lit', lit); n.lit = lit; }
       if (near !== n.near) { n.el.classList.toggle('near', near); n.near = near; }
       if (n.day && (n.y <= top + 70 || !label)) { label = n.label; }

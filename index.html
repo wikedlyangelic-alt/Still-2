@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&family=Roboto+Flex:opsz,wght@8..144,400..600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 <div id="app">
@@ -222,6 +222,10 @@
         <button type="button" class="text-btn" id="a-signout">Sign out</button>
       </div>
       <p class="msg" id="a-msg" role="status"></p>
+      <button type="button" class="switch-row" id="a-demo" role="switch" aria-checked="false" aria-describedby="a-demo-sub" hidden>
+        <span class="switch-text"><span class="switch-label">Demo mode</span><span class="switch-sub" id="a-demo-sub"></span></span>
+        <span class="switch" aria-hidden="true"><span class="switch-thumb"></span></span>
+      </button>
       <p class="version" id="a-version"></p>
     </div>
   </div>
@@ -248,9 +252,9 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 </div>
-<script src="icons.js?v=8"></script>
-<script src="eclipse.js?v=8"></script>
-<script src="vendor/supabase.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="icons.js?v=9"></script>
+<script src="eclipse.js?v=9"></script>
+<script src="vendor/supabase.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

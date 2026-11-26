@@ -1,6 +1,6 @@
 // Still 2: keeps the app working offline. Your entries live in the phone's storage and in Supabase, not in this cache.
-const CACHE = 'still2-v8';
-const V = '?v=8';
+const CACHE = 'still2-v9';
+const V = '?v=9';
 // The page asks for every script and style with the version on the end, so a phone can never mix old and new files.
 const CORE = ['./', './index.html', './app.css' + V, './app.js' + V, './icons.js' + V, './eclipse.js' + V, './vendor/supabase.js' + V, './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './badge-96.png'];
 

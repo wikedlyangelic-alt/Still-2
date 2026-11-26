@@ -20,7 +20,7 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - Write (home), Gratitude, Master your Mind, Meditate, Affirmations (coming next), Patterns.
 - Navigation is the eclipse: a small eclipse sits in the bottom-right corner of every screen. Tapping it clears the screen and grows it into the middle with six "moon" circles around it. Tapping the eclipse again returns to the screen you were on. Tapping a moon zooms into that screen.
 - The bright point on the eclipse's rim is the sun. Moons near it are lit in warm light; far ones fall into shadow (see `light()` in `app.js`). The eclipse button is 300px, scaled to 64px in the corner; it ignores taps except on `.ecl-hit`, which shrinks to the disc when open so the moons stay tappable.
-- Gratitude and Master your Mind use the star line: a light travels down the line as you scroll and lights the stars it passes (`Timeline` in `app.js`). Days are separated by a medallion with the date. Long days show 6 entries, then "Show N more".
+- Gratitude and Master your Mind use the star line: a light travels down the line as you scroll and lights the stars it passes (`Timeline` in `app.js`). When the screen opens the light sits on the first entry's star (only that one is lit); over the first stretch of scrolling (up to 240px) it glides down to its resting place 42% down the screen. A list too short to scroll is lit all the way. Days are separated by a medallion with the date. Long days show 6 entries, then "Show N more".
 - The phone's back gesture closes sheets, the eclipse, the voice blob and ends a meditation (the `layers` stack).
 - Write is centred, with a live clock (seconds) under the date. Under it, an up-and-down kind wheel: Gratitude, then the five Master your Mind kinds. When it stops, the middle one locks in: the question, placeholder, Save button, caret and voice blob take that kind's colour, and Save goes to `moments` or `mind_entries`. It starts on Gratitude each time the app opens. The mic opens a full-screen moving blob with the words appearing underneath (`drawBlob`); tap the blob to pause or keep talking. Entries in the lists show their time to the second.
 - Hold an entry in Gratitude or Master your Mind (about half a second) to open a small see-through glass editing bubble that floats up from the entry (kept in the top third so the keyboard never covers it): change the text (and, for Master your Mind, the kind with a small up-and-down selector in its top-right corner; tap it for the next kind), Save or Delete, both with Undo. Tap outside or use back to close. Enter on a focused entry opens it too.
@@ -51,13 +51,19 @@ The first app lives in a separate repo (wikedlyangelic-alt/Still) and must keep 
 - Secrets live in Supabase Vault and never leave Supabase: `still_push_secret` (the job proves itself to the function with it), `still_vapid_private` and `still_vapid_public` (made by the function's `setup` mode). The function's `selftest` mode checks the encryption without sending anything.
 - The security advisor warns that signed-in people can run `save_push_subscription()`. That is on purpose: it is how a phone saves its own address, and it only ever writes the caller's own row and only accepts real push-service addresses.
 
+## Demo mode (Andrew only)
+
+- For showing Still to people: two weeks of sample gratitude and Master your Mind entries, made fresh each time it is turned on (`makeDemo()`), ending at the current moment so today always has entries. Good wins most days, not all.
+- The switch sits in the backup sheet (cloud icon), hidden until the version line is tapped 7 times within 3 seconds, and only on Andrew's account (`DEMO_OWNER`). Once unlocked it stays visible on that phone. While demo mode is on, the switch shows for anyone, so it can always be turned off.
+- While it is on, the app reads and writes a separate store (`still2-demo-data`), nothing syncs (`syncNow` and `syncSoon` return early), and the real journal (`still2-data-v1`) is untouched. Turning it off deletes the sample store, reloads the real journal and syncs. A small gold dot after the clock on Write is the only sign it is on.
+
 ## Balance (Master your Mind)
 
 Good = today's gratitude moments + "Thinking of others". Hard = angry + afraid + selfish + resentful. The goal is for good to win the day.
 
 ## Rules
 
-- No sample or placeholder data in the app. Empty states explain what will appear.
+- No sample or placeholder data in the app, except demo mode, which keeps its own store and never syncs. Empty states explain what will appear.
 - Keep colours to the night palette: background #100E1B / #0B0A13, lavender #C8BBFF, gold #EEC56C for gratitude. The eclipse's light is warm white and gold, never purple. Emotion colours only in Master your Mind: others #7DDBA8, angry #FF8A7A, afraid #8AB6FF, selfish #FFB15C, resentful #E89BEF.
 - Touch targets at least 48px. Respect reduced motion.
 - Escape user text before putting it in HTML (`esc()`).
